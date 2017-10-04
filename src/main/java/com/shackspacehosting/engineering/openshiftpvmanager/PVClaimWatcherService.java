@@ -24,6 +24,7 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -57,11 +58,11 @@ public class PVClaimWatcherService implements InitializingBean, DisposableBean {
 	@Value("${ssh.port}")
 	private int sshPort;
 
-	@Value("${ssh.keyfile}")
-	private String sshKeyfile;
-
 	@Value("${ssh.username}")
 	private String sshUsername;
+
+	@Value("${ssh.keyfile}")
+	private String sshKeyfile;
 
 	@Value("${ssh.keysecret}")
 	private String sshKeySecret;
@@ -69,8 +70,11 @@ public class PVClaimWatcherService implements InitializingBean, DisposableBean {
 	@Value("${zfs.root}")
 	private String zfsRoot;
 
+	private ZFSStorageController storageController = null;
+
 	@Override
 	public void afterPropertiesSet() throws Exception {
+		storageController = new ZFSStorageController(nfsHostname, nfsRoot, zfsRoot, true, sshHostname, sshPort, sshUsername, sshKeyfile, sshKeySecret);
 		startPVCWatcherService();
 	}
 
@@ -104,73 +108,25 @@ public class PVClaimWatcherService implements InitializingBean, DisposableBean {
 											String mUnit = m.group(2);
 											System.err.println("Found pvc: " + pvc.getName() + "( " + pvc.getVolumeName() + ") " + pvc.getRequestedStorage());
 
+											IPersistentVolumeProperties persistentVolumeProperties = storageController.createPersistentVolume(Long.valueOf(sSize), MemoryUnit.valueOf(mUnit));
 
-											String vName = pvc.getNamespace() + "-" + pvc.getName();
-											JSch jsch = new JSch();
-											try {
-												jsch.addIdentity(sshKeyfile, sshKeySecret.getBytes("UTF-8"));
-											} catch (JSchException e) {
-												e.printStackTrace();
-											} catch (UnsupportedEncodingException e) {
-												e.printStackTrace();
-											}
-											Session session = null;
-											try {
-												session = jsch.getSession(sshUsername, sshHostname, sshPort);
-												session.setConfig("StrictHostKeyChecking", "no");
-												session.connect(30000);   // making a connection with timeout.
-											} catch (JSchException e) {
-												e.printStackTrace();
-											}
+											//Create the pv to nfs mapping
 
-											String command = "sudo zfs create " + zfsRoot + "/" + vName;
-											StringBuilder outputBuffer = new StringBuilder();
+											IPersistentVolume service = (IPersistentVolume)client.getResourceFactory().stub(ResourceKind.PERSISTENT_VOLUME, "dynamic-" + UUID.randomUUID().toString());
+											Set<String> accessModesSet = pvc.getAccessModes();
+											String[] accessModes = new String[accessModesSet.size()];
+											accessModesSet.toArray(accessModes);
+											service.setAccessModes(accessModes);
+											service.setReclaimPolicy("Recycle");
+											service.setCapacity(Long.valueOf(sSize), MemoryUnit.valueOf(mUnit));
+											service.setPersistentVolumeProperties(persistentVolumeProperties);
 
 											try {
-												Channel channel = session.openChannel("exec");
-												((ChannelExec) channel).setCommand(command);
-												InputStream commandOutput = channel.getInputStream();
-												channel.connect();
-												int readByte = commandOutput.read();
-
-												while (readByte != 0xffffffff) {
-													outputBuffer.append((char) readByte);
-													readByte = commandOutput.read();
-												}
-
-												channel.disconnect();
-												int xs = channel.getExitStatus();
-												xs = 0;
-												if (xs != 0) {
-													System.err.println("Exit status: " + xs);
-													System.err.println(outputBuffer.toString());
-												} else {
-													// Create the pv to nfs mapping
-
-													IPersistentVolume service = (IPersistentVolume)client.getResourceFactory().stub(ResourceKind.PERSISTENT_VOLUME, vName);
-													Set<String> accessModesSet = pvc.getAccessModes();
-													String[] accessModes = new String[accessModesSet.size()];
-													accessModesSet.toArray(accessModes);
-													service.setAccessModes(accessModes);
-													service.setReclaimPolicy("Recycle");
-													service.setCapacity(Long.valueOf(sSize), MemoryUnit.valueOf(mUnit));
-													String dirName =  Paths.get(nfsRoot, vName).toString();
-													service.setPersistentVolumeProperties(new NfsVolumeProperties(nfsHostname, dirName, false));
-
-													try {
-														service = client.create(service);
-													} catch (Exception e) {
-														System.err.println("Exception: " + e.getMessage());
-													}
-												}
-											} catch (IOException ioX) {
-												System.err.println("Exception: " + ioX.getMessage());
-											} catch (JSchException jschX) {
-												System.err.println("Exception: " + jschX.getMessage());
+												service = client.create(service);
+											} catch (Exception e) {
+												System.err.println("Exception: " + e.getMessage());
 											}
 
-
-											session.disconnect();
 											break;
 										case "bound":
 											break;
@@ -187,6 +143,7 @@ public class PVClaimWatcherService implements InitializingBean, DisposableBean {
 						}
 					} catch(Exception e) {
 						System.err.println("Crash crash crash: " + e.getMessage());
+						e.printStackTrace();
 					}
 				}
 				System.err.println("Shutting down Persistent Volume Claim Watcher.");
