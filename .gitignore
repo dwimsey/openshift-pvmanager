@@ -1,0 +1,14 @@
+**/target/
+**/.idea/
+**/*.iml
+**/.DS_Store
+.vagrant
+.vagrantuser
+*.orig
+*.pyc
+*.ipr
+*.iws
+*.retry
+hs_err_pid*
+*.log
+!*.logr*

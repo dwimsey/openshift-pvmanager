@@ -1,0 +1,41 @@
+# EditorConfig is awesome: http://EditorConfig.org
+
+# top-most EditorConfig file
+root = true
+
+# Unix-style newlines with a newline ending every file
+# Before this holy war starts, please read
+# http://programmers.stackexchange.com/questions/57/tabs-versus-spaces-what-is-the-proper-indentation-character-for-everything-in-e
+# -- dwimsey
+[*]
+end_of_line = lf
+insert_final_newline = true
+indent_style = tab
+trim_trailing_whitespace = true
+
+# Matches multiple files with brace expansion notation
+# Set default charset
+[*.{js,java,txt,c,cpp,rb,sh,xml,yml,yaml}]
+charset = utf-8
+
+# In Markdown, trailing whitespace is important, don't strip it!
+[*.{md,MD}]
+indent_style = space
+indent_size = 2
+trim_trailing_whitespace = false
+
+# Dear Yaml,
+# I hate whitespace based languages, anything that can be damaged because you paste it into the wrong editor is stupid
+# to say the least.  Read all of http://c2.com/cgi/wiki?SyntacticallySignificantWhitespaceConsideredHarmful for thoughts
+# -- dwimsey
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+# Dear Python,
+# I hate whitespace based languages, anything that can be damaged because you paste it into the wrong editor is stupid
+# to say the least.  Read all of http://c2.com/cgi/wiki?SyntacticallySignificantWhitespaceConsideredHarmful for thoughts
+# -- dwimsey
+[*.{py}]
+indent_style = space
+indent_size = 4
+charset = utf-8
