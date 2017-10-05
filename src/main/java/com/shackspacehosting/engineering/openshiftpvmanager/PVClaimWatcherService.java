@@ -120,7 +120,6 @@ public class PVClaimWatcherService implements InitializingBean, DisposableBean {
 											service.setReclaimPolicy("Recycle");
 											service.setCapacity(Long.valueOf(sSize), MemoryUnit.valueOf(mUnit));
 											service.setPersistentVolumeProperties(persistentVolumeProperties);
-
 											try {
 												service = client.create(service);
 											} catch (Exception e) {

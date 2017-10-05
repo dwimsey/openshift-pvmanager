@@ -40,14 +40,20 @@ public class SSHExecWrapper {
 		session.setConfig("StrictHostKeyChecking", "no");
 		session.connect(30000);
 	}
-/*
-		String command = "sudo zfs create " + zfsRoot + "/" + vName;
-		StringBuilder outputBuffer = new StringBuilder();
+
+	public int exec(String command, StringBuilder outputBuffer) throws JSchException, IOException {
+		if(session == null) {
+			this.connect();
+		}
 
 		try {
-			Channel channel = session.openChannel("exec");
+			Channel channel;
+
+			channel = session.openChannel("exec");
+
 			((ChannelExec) channel).setCommand(command);
 			InputStream commandOutput = channel.getInputStream();
+			InputStream commandErrOutput = ((ChannelExec) channel).getErrStream();
 			channel.connect();
 			int readByte = commandOutput.read();
 
@@ -56,44 +62,27 @@ public class SSHExecWrapper {
 				readByte = commandOutput.read();
 			}
 
-			channel.disconnect();
-			int xs = channel.getExitStatus();
-			xs = 0;
-			if (xs != 0) {
-				System.err.println("Exit status: " + xs);
-				System.err.println(outputBuffer.toString());
-			} else {
-				// Create the pv to nfs mapping
+			readByte = commandErrOutput.read();
 
+			while (readByte != 0xffffffff) {
+				outputBuffer.append((char) readByte);
+				readByte = commandErrOutput.read();
 			}
-		} catch (IOException ioX) {
-			System.err.println("Exception: " + ioX.getMessage());
-		} catch (JSchException jschX) {
-			System.err.println("Exception: " + jschX.getMessage());
+
+			channel.disconnect();
+			return channel.getExitStatus();
+		} catch (Exception e) {
+			disconnect();
+			session = null;
+			throw e;
 		}
-
-
-
-	}
-*/
-
-	public int exec(String command, StringBuilder outputBuffer) throws JSchException, IOException {
-		Channel channel = session.openChannel("exec");
-		((ChannelExec) channel).setCommand(command);
-		InputStream commandOutput = channel.getInputStream();
-		channel.connect();
-		int readByte = commandOutput.read();
-
-		while (readByte != 0xffffffff) {
-			outputBuffer.append((char) readByte);
-			readByte = commandOutput.read();
-		}
-
-		channel.disconnect();
-		return channel.getExitStatus();
 	}
 
 	public void disconnect() {
-		session.disconnect();
+		if (session != null) {
+			if (session.isConnected()) {
+				session.disconnect();
+			}
+		}
 	}
 }

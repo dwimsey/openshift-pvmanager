@@ -10,6 +10,8 @@ import com.openshift.restclient.utils.MemoryUnit;
 import java.io.IOException;
 import java.util.UUID;
 
+import static com.openshift.restclient.utils.MemoryUnit.*;
+
 /**
  * Created by dwimsey on 10/4/17.
  */
@@ -39,7 +41,20 @@ public class ZFSStorageController {
 
 	public IPersistentVolumeProperties createPersistentVolume(long sizeInUnits, MemoryUnit unitSize) throws IOException, JSchException {
 		UUID uuid = UUID.randomUUID();
-		String command = (becomeRoot ? "sudo " : "") + "zfs create " + zfsRoot + "/" + uuid.toString();
+		String suffixChar = null;
+		switch(unitSize) {
+			default:
+				System.err.println("Unknown unit type: " + unitSize.toString());
+			case Ki:
+			case Mi:
+			case Gi:
+			case Ti:
+			case Pi:
+			case Ei:
+				suffixChar = unitSize.toString().substring(0, 1);
+				break;
+		}
+		String command = (becomeRoot ? "sudo " : "") + "zfs create -o quota=" + sizeInUnits + suffixChar + " " + zfsRoot + "/" + uuid.toString();
 
 		StringBuilder outputBuffer = new StringBuilder();
 
