@@ -119,7 +119,7 @@
 						</goals>
 						<configuration>
 							<executable>true</executable>
-							<mainClass>com.shackspacehosting.engineering.openshift-pvmanager.OpenShiftPVManagerApplication</mainClass>
+							<mainClass>com.shackspacehosting.engineering.openshiftpvmanager.OpenshiftPVManagerApplication</mainClass>
 						</configuration>
 					</execution>
 				</executions>
