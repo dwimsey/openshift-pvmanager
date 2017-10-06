@@ -39,8 +39,7 @@ public class ZFSStorageController {
 		sshWrapper.disconnect();
 	}
 
-	public IPersistentVolumeProperties createPersistentVolume(long sizeInUnits, MemoryUnit unitSize) throws IOException, JSchException {
-		UUID uuid = UUID.randomUUID();
+	public IPersistentVolumeProperties createPersistentVolume(UUID uuid, long sizeInUnits, MemoryUnit unitSize) throws IOException, JSchException {
 		String suffixChar = null;
 		switch(unitSize) {
 			default:

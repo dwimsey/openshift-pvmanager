@@ -100,19 +100,19 @@ public class PVClaimWatcherService implements InitializingBean, DisposableBean {
 								for (IPersistentVolumeClaim pvc : pvcList) {
 									switch (pvc.getStatus().toLowerCase()) {
 										case "pending":
-										case "lost":
 											String requestedStorageString = pvc.getRequestedStorage();
 											Matcher m = p.matcher(requestedStorageString);
 											boolean b = m.matches();
 											String sSize = m.group(1);
 											String mUnit = m.group(2);
-											System.err.println("Found pvc: " + pvc.getName() + "( " + pvc.getVolumeName() + ") " + pvc.getRequestedStorage());
+											System.err.println("Found unbound pvc: " + pvc.getName() + "( " + pvc.getVolumeName() + ") " + pvc.getRequestedStorage());
 
-											IPersistentVolumeProperties persistentVolumeProperties = storageController.createPersistentVolume(Long.valueOf(sSize), MemoryUnit.valueOf(mUnit));
+											UUID uuid = UUID.randomUUID();
+											IPersistentVolumeProperties persistentVolumeProperties = storageController.createPersistentVolume(uuid, Long.valueOf(sSize), MemoryUnit.valueOf(mUnit));
 
 											//Create the pv to nfs mapping
 
-											IPersistentVolume service = (IPersistentVolume)client.getResourceFactory().stub(ResourceKind.PERSISTENT_VOLUME, "dynamic-" + UUID.randomUUID().toString());
+											IPersistentVolume service = (IPersistentVolume)client.getResourceFactory().stub(ResourceKind.PERSISTENT_VOLUME, "dynamic-" + ((NfsVolumeProperties)persistentVolumeProperties).getServer() + "-" + uuid.toString());
 											Set<String> accessModesSet = pvc.getAccessModes();
 											String[] accessModes = new String[accessModesSet.size()];
 											accessModesSet.toArray(accessModes);
@@ -122,11 +122,13 @@ public class PVClaimWatcherService implements InitializingBean, DisposableBean {
 											service.setPersistentVolumeProperties(persistentVolumeProperties);
 											try {
 												service = client.create(service);
+												System.err.println("New PV created for PVC " + pvc.getName() + "( " + pvc.getVolumeName() + "): " + persistentVolumeProperties.toString());
 											} catch (Exception e) {
 												System.err.println("Exception: " + e.getMessage());
 											}
 
 											break;
+										case "lost": // don't do anything with this one atm, openshift won't remap to a new available PV so theres no point in creating one
 										case "bound":
 											break;
 										default:
