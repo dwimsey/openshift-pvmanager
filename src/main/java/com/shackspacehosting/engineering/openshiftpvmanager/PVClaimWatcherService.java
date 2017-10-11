@@ -67,6 +67,9 @@ public class PVClaimWatcherService implements InitializingBean, DisposableBean {
 	@Value("${ssh.keysecret}")
 	private String sshKeySecret;
 
+	@Value("${ssh.becomeroot}")
+	private boolean sshBecomeRoot;
+
 	@Value("${zfs.root}")
 	private String zfsRoot;
 
@@ -74,7 +77,7 @@ public class PVClaimWatcherService implements InitializingBean, DisposableBean {
 
 	@Override
 	public void afterPropertiesSet() throws Exception {
-		storageController = new ZFSStorageController(nfsHostname, nfsRoot, zfsRoot, true, sshHostname, sshPort, sshUsername, sshKeyfile, sshKeySecret);
+		storageController = new ZFSStorageController(nfsHostname, nfsRoot, zfsRoot, sshBecomeRoot, sshHostname, sshPort, sshUsername, sshKeyfile, sshKeySecret);
 		startPVCWatcherService();
 	}
 
