@@ -1,6 +1,8 @@
 package com.shackspacehosting.engineering.openshiftpvmanager;
 
 import com.jcraft.jsch.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,6 +12,8 @@ import java.io.UnsupportedEncodingException;
  * Created by dwimsey on 10/4/17.
  */
 public class SSHExecWrapper {
+	private static final Logger LOG = LoggerFactory.getLogger(SSHExecWrapper.class);
+
 	private String sshHostname;
 	private int sshPort;
 	private String sshUsername;
@@ -29,11 +33,14 @@ public class SSHExecWrapper {
 	public void connect() throws JSchException {
 		JSch jsch = new JSch();
 		try {
-			jsch.addIdentity(sshKeyfile, sshKeySecret.getBytes("UTF-8"));
+			if(sshKeyfile != null && sshKeySecret != null) {
+				jsch.addIdentity(sshKeyfile, sshKeySecret);
+			} else if(sshKeyfile != null && sshKeySecret == null) {
+				jsch.addIdentity(sshKeyfile);
+			}
 		} catch (JSchException e) {
-			e.printStackTrace();
-		} catch (UnsupportedEncodingException e) {
-			e.printStackTrace();
+			LOG.error("SSH identity configuration error: {}", e);
+			throw e;
 		}
 
 		session = jsch.getSession(sshUsername, sshHostname, sshPort);

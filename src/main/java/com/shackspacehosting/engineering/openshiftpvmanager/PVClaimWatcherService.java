@@ -1,163 +1,288 @@
 package com.shackspacehosting.engineering.openshiftpvmanager;
 
+import com.jcraft.jsch.JSchException;
 import com.openshift.internal.restclient.model.volume.property.NfsVolumeProperties;
+import com.openshift.restclient.ClientBuilder;
+import com.openshift.restclient.IClient;
+import com.openshift.restclient.IOpenShiftWatchListener;
 import com.openshift.restclient.ResourceKind;
-import com.openshift.restclient.capability.CapabilityVisitor;
-import com.openshift.restclient.model.*;
-import com.openshift.restclient.model.build.IBuildConfigBuilder;
 import com.openshift.restclient.model.volume.IPersistentVolume;
-import com.openshift.restclient.model.volume.IPersistentVolumeClaim;
-import com.openshift.restclient.model.volume.property.INfsVolumeProperties;
 import com.openshift.restclient.model.volume.property.IPersistentVolumeProperties;
 import com.openshift.restclient.utils.MemoryUnit;
+import com.shackspacehosting.engineering.openshiftpvmanager.kubernetes.ObjectNameMapper;
+import com.shackspacehosting.engineering.openshiftpvmanager.kubernetes.PVCWatchListener;
+import com.shackspacehosting.engineering.openshiftpvmanager.kubernetes.PVWatchListener;
+import org.apache.ignite.Ignite;
+import org.apache.ignite.Ignition;
+import org.apache.ignite.cache.CacheMode;
+import org.apache.ignite.configuration.CollectionConfiguration;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.InitializingBean;
-import com.openshift.restclient.ClientBuilder;
-import com.openshift.restclient.IClient;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
+import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.jcraft.jsch.*;
-
 @Component
 public class PVClaimWatcherService implements InitializingBean, DisposableBean {
+	private static final Logger LOG = LoggerFactory.getLogger(PVClaimWatcherService.class);
 
-	@Value("${openshift.url}")
-	private String openShiftUrl;
+	@Value("${kubernetes.service.scheme:https}")
+	private String kubernetesServiceScheme;
 
-	@Value("${openshift.username}")
-	private String openShiftUsername;
+	@Value("${kubernetes.service.host:kubernetes}")
+	private String kubernetesServiceHost;
 
-	@Value("${openshift.secret}")
-	private String openShiftPassword;
+	@Value("${kubernetes.service.port:443}")
+	private String kubernetesServicePort;
 
-	@Value("${openshift.pollsleepms}")
+	@Value("${kubernetes.service.username:}")
+	private String kubernetesServiceUsername;
+
+	@Value("${kubernetes.service.token}")
+	private String kubernetesServiceToken;
+
+	@Value("${kubernetes.pollsleepms:500}")
 	private int watcherPollSleepTime;
 
+	@Value("${storage.configuration}")
+	private String storageConfiguration;
 
-	@Value("${nfs.hostname}")
-	private String nfsHostname;
+	@Value("${distributed.mode.disabled:false}")
+	private Boolean igniteDisabled;
 
-	@Value("${nfs.root}")
-	private String nfsRoot;
+	@Value("${distributed.mode.configuration.file:classpath:ignite.xml}")
+	private String igniteConfigurationFile;
 
-	@Value("${ssh.hostname}")
-	private String sshHostname;
+	@Value("${distributed.mode.backup.count:0}")
+	private Integer igniteReplicationBackup;
 
-	@Value("${ssh.port}")
-	private int sshPort;
+	@Value("${distributed.mode.queue.size:0}")
+	private Integer igniteQueueSize;
 
-	@Value("${ssh.username}")
-	private String sshUsername;
+	private ModularizedStorageController storageController = null;
 
-	@Value("${ssh.keyfile}")
-	private String sshKeyfile;
+	private IOpenShiftWatchListener pvcWatchListener = null;
 
-	@Value("${ssh.keysecret}")
-	private String sshKeySecret;
+	private IOpenShiftWatchListener pvWatchListener = null;
 
-	@Value("${ssh.becomeroot}")
-	private boolean sshBecomeRoot;
-
-	@Value("${zfs.root}")
-	private String zfsRoot;
-
-	private ZFSStorageController storageController = null;
+	private Queue<PVCChangeNotification> pvcQueue;
 
 	@Override
 	public void afterPropertiesSet() throws Exception {
-		storageController = new ZFSStorageController(nfsHostname, nfsRoot, zfsRoot, sshBecomeRoot, sshHostname, sshPort, sshUsername, sshKeyfile, sshKeySecret);
-		startPVCWatcherService();
+
+		// If we set the replication count to 0, meaning no replicas, then just disable ignite all together.
+		// If the replication count is less than 0, require all nodes to be synchronized
+		// If the replication count is greater than 0, then require that many backup ignite nodes.  This can be a problem if the cluster contains too few pods running
+		if (!igniteDisabled) {
+			Ignite ignite = Ignition.start(igniteConfigurationFile);
+			CollectionConfiguration cfg = new CollectionConfiguration();
+			if(igniteReplicationBackup > 0) {
+				cfg.setCacheMode(CacheMode.PARTITIONED);
+				cfg.setBackups(igniteReplicationBackup);
+			} else {
+				cfg.setCacheMode(CacheMode.REPLICATED);
+			}
+			pvcQueue = ignite.queue("pvcEventQueue", igniteQueueSize, cfg);
+		} else {
+			pvcQueue = new LinkedBlockingQueue<PVCChangeNotification>();
+		}
+
+		storageController = new ModularizedStorageController(storageConfiguration);
+		startSpringServiceManagerThread();
+	}
+
+	public void pvcListenerDisconnected(PVCWatchListener listener) {
+		LOG.info("Persistent volume claim listener disconnected");
+		this.pvcWatchListener = null;
+	}
+
+	public void pvcListenerError(PVCWatchListener listener, Throwable t) {
+		LOG.error("Persistent volume claim listener error: {}", t);
+		this.pvcWatchListener = null;
+	}
+
+	public void pvListenerDisconnected(PVWatchListener listener) {
+		LOG.info("Persistent volume listener disconnected");
+		this.pvWatchListener = null;
+	}
+
+	public void pvListenerError(PVWatchListener listener, Throwable t) {
+		LOG.error("Persistent volume listener error: {}", t);
+		this.pvWatchListener = null;
 	}
 
 	private boolean beanShouldStop = false;
-	private void startPVCWatcherService() {
-		Thread t = new Thread(new Runnable() {
+	Thread serviceThread = null;
+	private void startSpringServiceManagerThread() {
+		serviceThread = new Thread(new Runnable() {
 			@Override
 			public void run() {
-				Pattern p = Pattern.compile("([0-9]+)([A-Za-z]+)");
-
 				while(!beanShouldStop) {
 					try {
+						String openShiftPassword;
+						if (kubernetesServiceToken.startsWith("/")) {
+							// If the password starts with /, it is expected
+							// to be a filename pointing to a token.  Basically
+							// this means passwords can't start with '/', but so what? --dwimsey
+							try {
+								// we re-read this every time, just in case it changes this way we get new tokens
+								// as needed if we get disconnected due to a bad token (or any other reason)
+								openShiftPassword = new String(Files.readAllBytes(Paths.get(kubernetesServiceToken)));
+							} catch(Exception e) {
+								LOG.error("Could not read kubernetes token file: " + kubernetesServiceToken + ": " + e.getMessage());
+								throw e;
+							}
+						} else {
+							openShiftPassword = kubernetesServiceToken;
+						}
+						String openShiftUrl = kubernetesServiceScheme + "://" + kubernetesServiceHost + ":" + kubernetesServicePort;
 						IClient client = new ClientBuilder(openShiftUrl)
-								.withUserName(openShiftUsername)
+								.withUserName(kubernetesServiceUsername)
 								.withPassword(openShiftPassword)
 								.build();
 
+						pvcWatchListener = new PVCWatchListener(PVClaimWatcherService.this, pvcQueue, storageController);
+						LOG.info("Starting to watch for persistent volume claims");
+						client.watch(pvcWatchListener, ResourceKind.PVC);
+
+//						pvWatchListener = new PVWatchListener(PVClaimWatcherService.this, storageController);
+//						LOG.info("Starting to watch for persistent volumes");
+//						client.watch(pvWatchListener, ResourceKind.PERSISTENT_VOLUME);
+
 						while(!beanShouldStop) {
-							List<IProject> projectList = client.list(ResourceKind.PROJECT);
-							for (IProject rItem : projectList) {
-
-								List<IPersistentVolumeClaim> pvcList = client.list(ResourceKind.PVC, rItem.getNamespace());
-								for (IPersistentVolumeClaim pvc : pvcList) {
-									switch (pvc.getStatus().toLowerCase()) {
-										case "pending":
-											String requestedStorageString = pvc.getRequestedStorage();
-											Matcher m = p.matcher(requestedStorageString);
-											boolean b = m.matches();
-											String sSize = m.group(1);
-											String mUnit = m.group(2);
-											System.err.println("Found unbound pvc: " + pvc.getName() + "( " + pvc.getVolumeName() + ") " + pvc.getRequestedStorage());
-
-											UUID uuid = UUID.randomUUID();
-											IPersistentVolumeProperties persistentVolumeProperties = storageController.createPersistentVolume(uuid, Long.valueOf(sSize), MemoryUnit.valueOf(mUnit));
-
-											//Create the pv to nfs mapping
-
-											IPersistentVolume service = (IPersistentVolume)client.getResourceFactory().stub(ResourceKind.PERSISTENT_VOLUME, "dynamic-" + ((NfsVolumeProperties)persistentVolumeProperties).getServer() + "-" + uuid.toString());
-											Set<String> accessModesSet = pvc.getAccessModes();
-											String[] accessModes = new String[accessModesSet.size()];
-											accessModesSet.toArray(accessModes);
-											service.setAccessModes(accessModes);
-											service.setReclaimPolicy("Recycle");
-											service.setCapacity(Long.valueOf(sSize), MemoryUnit.valueOf(mUnit));
-											service.setPersistentVolumeProperties(persistentVolumeProperties);
-											try {
-												service = client.create(service);
-												System.err.println("New PV created for PVC " + pvc.getName() + "( " + pvc.getVolumeName() + "): " + persistentVolumeProperties.toString());
-											} catch (Exception e) {
-												System.err.println("Exception: " + e.getMessage());
-											}
-
-											break;
-										case "lost": // don't do anything with this one atm, openshift won't remap to a new available PV so theres no point in creating one
-										case "bound":
-											break;
-										default:
-											System.err.println("Found pvc: " + pvc.getName() + "( " + pvc.getVolumeName() + ") " + pvc.getNamespace() + ": unknown state: " + pvc.getStatus());
-									}
-								}
+							if (pvcWatchListener == null) {
+								pvcWatchListener = new PVCWatchListener(PVClaimWatcherService.this, pvcQueue, storageController);
+								LOG.info("Restarting to watch for persistent volume claims");
+								client.watch(pvcWatchListener, ResourceKind.PVC);
 							}
+
+//							if (pvWatchListener == null) {
+//								pvWatchListener = new PVWatchListener(PVClaimWatcherService.this, storageController);
+//								LOG.info("Restarting to watch for persistent volumes");
+//								client.watch(pvWatchListener, ResourceKind.PERSISTENT_VOLUME);
+//							}
+
+							PVCChangeNotification pvcChangeNotification = pvcQueue.poll();
+							while(pvcChangeNotification != null) {
+								//LOG.error(pvcChangeNotification.toString());
+								processNewPvc(client, pvcChangeNotification);
+								pvcChangeNotification = pvcQueue.poll();
+							}
+
 							try {
 								Thread.sleep(watcherPollSleepTime);
 							} catch (InterruptedException e) {
-								e.printStackTrace();
+								LOG.error("Interrupted Sleep: {}", e);
 							}
 						}
+
 					} catch(Exception e) {
-						System.err.println("Crash crash crash: " + e.getMessage());
-						e.printStackTrace();
+						LOG.error("Unhandled crash in Persistent Volume Manager: {}", e);
 					}
 				}
-				System.err.println("Shutting down Persistent Volume Claim Watcher.");
+				LOG.info("Persistent Volume Manager is stopped.");
 			}
 		});
-		t.start();
+		serviceThread.start();
 	}
 
 	@Override
 	public void destroy() throws Exception {
 		beanShouldStop = true;
+		serviceThread.join();
+	}
+
+	private void processNewPvc(IClient client, PVCChangeNotification pvc) {
+		switch (pvc.getUpdateType().toLowerCase()) {
+			case "added":
+				switch (pvc.getStatus().toLowerCase()) {
+					case "pending":
+						try {
+							Map<String, String> annotations = pvc.getAnnotations();
+							if (annotations.containsKey("volume.beta.kubernetes.io/storage-provisioner")) {
+								if (annotations.get("volume.beta.kubernetes.io/storage-provisioner").equals("wimsey.us/pvmanager")) {
+									createPVForPVC(client, pvc);
+								}
+							} else {
+								createPVForPVC(client, pvc);
+							}
+						} catch (JSchException e) {
+							LOG.error("SSH Exception: {}", e);
+						} catch (Exception e) {
+							LOG.error("Exception in something weird internally: {}", e);
+						}
+						break;
+					case "lost": // don't do anything with this one atm, openshift won't remap to a new available PV so theres no point in creating one
+					case "bound": // this PVC is already handled, not sure why we're seeing it
+						break;
+					default:
+						LOG.error("Found pvc: " + pvc.getName() + "( " + pvc.getVolumeName() + ") " + pvc.getNamespace() + ": unknown state: " + pvc.getStatus());
+				}
+				break;
+
+			case "modified":
+				// can we do anything here?
+				break;
+			case "deleted":
+				// We should trigger the process of cleansing the associated PV
+				break;
+		}
+	}
+
+
+
+
+	Pattern storageStringRegexPattern = Pattern.compile("([0-9]+)([A-Za-z]+)");
+	private void createPVForPVC(IClient client, PVCChangeNotification pvc) throws IOException, JSchException {
+		String requestedStorageString = pvc.getRequestedStorage();
+		Matcher m = storageStringRegexPattern.matcher(requestedStorageString);
+		boolean b = m.matches();
+		if (!b) {
+			throw new InvalidPropertiesFormatException("Could not parse requested storage string: " + requestedStorageString);
+		}
+
+		String sSize = m.group(1);
+		String mUnit = m.group(2);
+
+		UUID uuid = UUID.randomUUID();
+
+
+
+		IPersistentVolumeProperties persistentVolumeProperties = null;
+		try {
+			persistentVolumeProperties = storageController.createPersistentVolume(ObjectNameMapper.mapKubernetesToPVManagerPVCAnnotations(pvc.getNamespace(), pvc.getName(), pvc.getAnnotations()), uuid, Long.valueOf(sSize), MemoryUnit.valueOf(mUnit));
+			if (persistentVolumeProperties == null) {
+				LOG.error("Persistent volume request could not be fulfilled by any providers.");
+				return;
+			}
+		} catch (Exception e) {
+			LOG.error("Unhandled exception attempting to create persistent volume for claim: {}", e);
+			return;
+		}
+
+		//    Create the pv to NFS mapping
+		IPersistentVolume persistentVolume = (IPersistentVolume)client.getResourceFactory().stub(ResourceKind.PERSISTENT_VOLUME, "dynamic-" + ((NfsVolumeProperties)persistentVolumeProperties).getServer() + "-" + uuid.toString());
+		Set<String> accessModesSet = pvc.getAccessModes();
+		String[] accessModes = new String[accessModesSet.size()];
+		accessModesSet.toArray(accessModes);
+		persistentVolume.setAccessModes(accessModes);
+		persistentVolume.setReclaimPolicy("Retain");
+		persistentVolume.setCapacity(Long.valueOf(sSize), MemoryUnit.valueOf(mUnit));
+		persistentVolume.setPersistentVolumeProperties(persistentVolumeProperties);
+		try {
+			persistentVolume = client.create(persistentVolume);
+			LOG.info("New PV created for PVC " + pvc.getName() + ": " + persistentVolumeProperties.toString());
+		} catch (Exception e) {
+			LOG.error("Exception: " + e.getMessage());
+		}
 	}
 }
