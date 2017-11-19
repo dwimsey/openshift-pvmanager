@@ -153,14 +153,16 @@ public class PVClaimWatcherService implements InitializingBean, DisposableBean {
 						IClient client;
 
 						if (kubernetesServiceUsername != null && !kubernetesServiceUsername.isEmpty()) {
+							LOG.info("Using username/password authentication: {}", kubernetesServiceUsername);
 							client = new ClientBuilder(openShiftUrl)
 									.withUserName(kubernetesServiceUsername)
 									.withPassword(openShiftPassword)
 									.build();
 						} else {
-							client = new ClientBuilder(openShiftUrl).usingToken(kubernetesServiceToken).build();
+							LOG.info("Using BearerToken: {}", kubernetesServiceToken);
+							client = new ClientBuilder(openShiftUrl).usingToken(openShiftPassword).build();
 						}
-						pvcWatchListener = new PVCWatchListener(PVClaimWatcherService.this, pvcQueue, storageController);
+						pvcWatchListener = new PVCWatchListener(PVClaimWatcherService.this, pvcQueue);
 						LOG.info("Starting to watch for persistent volume claims");
 						client.watch(pvcWatchListener, ResourceKind.PVC);
 
@@ -170,7 +172,7 @@ public class PVClaimWatcherService implements InitializingBean, DisposableBean {
 
 						while(!beanShouldStop) {
 							if (pvcWatchListener == null) {
-								pvcWatchListener = new PVCWatchListener(PVClaimWatcherService.this, pvcQueue, storageController);
+								pvcWatchListener = new PVCWatchListener(PVClaimWatcherService.this, pvcQueue);
 								LOG.info("Restarting to watch for persistent volume claims");
 								client.watch(pvcWatchListener, ResourceKind.PVC);
 							}
@@ -183,14 +185,14 @@ public class PVClaimWatcherService implements InitializingBean, DisposableBean {
 
 							PVCChangeNotification pvcChangeNotification = pvcQueue.poll();
 							while(pvcChangeNotification != null) {
-								//LOG.error(pvcChangeNotification.toString());
+								LOG.trace("pvcChangeNotification dequeued: {}", pvcChangeNotification.toString());
 								processNewPvc(client, pvcChangeNotification);
 								pvcChangeNotification = pvcQueue.poll();
 							}
 
 							PVChangeNotification pvChangeNotification = pvQueue.poll();
 							while(pvChangeNotification != null) {
-								//LOG.error(pvcChangeNotification.toString());
+								LOG.trace("pvChangeNotification dequeued: {}", pvChangeNotification.toString());
 								processPvChange(client, pvChangeNotification);
 								pvChangeNotification = pvQueue.poll();
 							}

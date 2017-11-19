@@ -15,14 +15,12 @@ import java.util.Queue;
 public class PVCWatchListener implements IOpenShiftWatchListener {
 	private static final Logger LOG = LoggerFactory.getLogger(PVCWatchListener.class);
 
-	private IStorageController storageController = null;
-
 	PVClaimWatcherService parent = null;
 	private Queue<PVCChangeNotification> queue;
-	public PVCWatchListener(PVClaimWatcherService parent, Queue<PVCChangeNotification> queue, IStorageController storageController) {
+
+	public PVCWatchListener(PVClaimWatcherService parent, Queue<PVCChangeNotification> queue) {
 		this.parent = parent;
 		this.queue = queue;
-		this.storageController = storageController;
 	}
 
 	@Override
