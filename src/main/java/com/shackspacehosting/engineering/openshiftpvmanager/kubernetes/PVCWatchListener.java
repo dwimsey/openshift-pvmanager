@@ -3,7 +3,7 @@ package com.shackspacehosting.engineering.openshiftpvmanager.kubernetes;
 import com.openshift.restclient.IOpenShiftWatchListener;
 import com.openshift.restclient.model.IResource;
 import com.openshift.restclient.model.volume.IPersistentVolumeClaim;
-import com.shackspacehosting.engineering.openshiftpvmanager.ModularizedStorageController;
+import com.shackspacehosting.engineering.openshiftpvmanager.IStorageController;
 import com.shackspacehosting.engineering.openshiftpvmanager.PVCChangeNotification;
 import com.shackspacehosting.engineering.openshiftpvmanager.PVClaimWatcherService;
 import org.slf4j.LoggerFactory;
@@ -15,11 +15,11 @@ import java.util.Queue;
 public class PVCWatchListener implements IOpenShiftWatchListener {
 	private static final Logger LOG = LoggerFactory.getLogger(PVCWatchListener.class);
 
-	private ModularizedStorageController storageController = null;
+	private IStorageController storageController = null;
 
 	PVClaimWatcherService parent = null;
 	private Queue<PVCChangeNotification> queue;
-	public PVCWatchListener(PVClaimWatcherService parent, Queue<PVCChangeNotification> queue, ModularizedStorageController storageController) {
+	public PVCWatchListener(PVClaimWatcherService parent, Queue<PVCChangeNotification> queue, IStorageController storageController) {
 		this.parent = parent;
 		this.queue = queue;
 		this.storageController = storageController;

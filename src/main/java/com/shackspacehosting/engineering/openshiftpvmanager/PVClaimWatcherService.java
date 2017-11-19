@@ -7,6 +7,7 @@ import com.openshift.restclient.IClient;
 import com.openshift.restclient.IOpenShiftWatchListener;
 import com.openshift.restclient.ResourceKind;
 import com.openshift.restclient.model.volume.IPersistentVolume;
+import com.openshift.restclient.model.volume.property.INfsVolumeProperties;
 import com.openshift.restclient.model.volume.property.IPersistentVolumeProperties;
 import com.openshift.restclient.utils.MemoryUnit;
 import com.shackspacehosting.engineering.openshiftpvmanager.kubernetes.ObjectNameMapper;
@@ -75,6 +76,7 @@ public class PVClaimWatcherService implements InitializingBean, DisposableBean {
 	private IOpenShiftWatchListener pvWatchListener = null;
 
 	private Queue<PVCChangeNotification> pvcQueue;
+	private Queue<PVChangeNotification> pvQueue;
 
 	@Override
 	public void afterPropertiesSet() throws Exception {
@@ -92,8 +94,10 @@ public class PVClaimWatcherService implements InitializingBean, DisposableBean {
 				cfg.setCacheMode(CacheMode.REPLICATED);
 			}
 			pvcQueue = ignite.queue("pvcEventQueue", igniteQueueSize, cfg);
+			pvQueue = ignite.queue("pvEventQueue", igniteQueueSize, cfg);
 		} else {
-			pvcQueue = new LinkedBlockingQueue<PVCChangeNotification>();
+			pvcQueue = new LinkedBlockingQueue<>();
+			pvQueue = new LinkedBlockingQueue<>();
 		}
 
 		storageController = new ModularizedStorageController(storageConfiguration);
@@ -145,18 +149,24 @@ public class PVClaimWatcherService implements InitializingBean, DisposableBean {
 							openShiftPassword = kubernetesServiceToken;
 						}
 						String openShiftUrl = kubernetesServiceScheme + "://" + kubernetesServiceHost + ":" + kubernetesServicePort;
-						IClient client = new ClientBuilder(openShiftUrl)
-								.withUserName(kubernetesServiceUsername)
-								.withPassword(openShiftPassword)
-								.build();
 
+						IClient client;
+
+						if (kubernetesServiceUsername != null && !kubernetesServiceUsername.isEmpty()) {
+							client = new ClientBuilder(openShiftUrl)
+									.withUserName(kubernetesServiceUsername)
+									.withPassword(openShiftPassword)
+									.build();
+						} else {
+							client = new ClientBuilder(openShiftUrl).usingToken(kubernetesServiceToken).build();
+						}
 						pvcWatchListener = new PVCWatchListener(PVClaimWatcherService.this, pvcQueue, storageController);
 						LOG.info("Starting to watch for persistent volume claims");
 						client.watch(pvcWatchListener, ResourceKind.PVC);
 
-//						pvWatchListener = new PVWatchListener(PVClaimWatcherService.this, storageController);
-//						LOG.info("Starting to watch for persistent volumes");
-//						client.watch(pvWatchListener, ResourceKind.PERSISTENT_VOLUME);
+						pvWatchListener = new PVWatchListener(PVClaimWatcherService.this, pvQueue);
+						LOG.info("Starting to watch for persistent volumes");
+						client.watch(pvWatchListener, ResourceKind.PERSISTENT_VOLUME);
 
 						while(!beanShouldStop) {
 							if (pvcWatchListener == null) {
@@ -165,17 +175,24 @@ public class PVClaimWatcherService implements InitializingBean, DisposableBean {
 								client.watch(pvcWatchListener, ResourceKind.PVC);
 							}
 
-//							if (pvWatchListener == null) {
-//								pvWatchListener = new PVWatchListener(PVClaimWatcherService.this, storageController);
-//								LOG.info("Restarting to watch for persistent volumes");
-//								client.watch(pvWatchListener, ResourceKind.PERSISTENT_VOLUME);
-//							}
+							if (pvWatchListener == null) {
+								pvWatchListener = new PVWatchListener(PVClaimWatcherService.this, pvQueue);
+								LOG.info("Restarting to watch for persistent volumes");
+								client.watch(pvWatchListener, ResourceKind.PERSISTENT_VOLUME);
+							}
 
 							PVCChangeNotification pvcChangeNotification = pvcQueue.poll();
 							while(pvcChangeNotification != null) {
 								//LOG.error(pvcChangeNotification.toString());
 								processNewPvc(client, pvcChangeNotification);
 								pvcChangeNotification = pvcQueue.poll();
+							}
+
+							PVChangeNotification pvChangeNotification = pvQueue.poll();
+							while(pvChangeNotification != null) {
+								//LOG.error(pvcChangeNotification.toString());
+								processPvChange(client, pvChangeNotification);
+								pvChangeNotification = pvQueue.poll();
 							}
 
 							try {
@@ -201,19 +218,30 @@ public class PVClaimWatcherService implements InitializingBean, DisposableBean {
 		serviceThread.join();
 	}
 
-	private void processNewPvc(IClient client, PVCChangeNotification pvc) {
-		switch (pvc.getUpdateType().toLowerCase()) {
+	private void processPvChange(IClient client, PVChangeNotification pvcn) {
+		LOG.info(" Event for resource: {}", pvcn.getName());
+		LOG.info("       Access Modes: {}", pvcn.getAccessModes());
+
+		Map<String, String> annotations = pvcn.getAnnotations();
+		String annotationValue = annotations.getOrDefault("managed-by", null);
+		if ("pvmanager".equals(annotationValue)) {
+			// This application is the owner of this pv, lets see what we need to do with it
+		}
+	}
+
+	private void processNewPvc(IClient client, PVCChangeNotification pvccn) {
+		switch (pvccn.getUpdateType().toLowerCase()) {
 			case "added":
-				switch (pvc.getStatus().toLowerCase()) {
+				switch (pvccn.getStatus().toLowerCase()) {
 					case "pending":
 						try {
-							Map<String, String> annotations = pvc.getAnnotations();
+							Map<String, String> annotations = pvccn.getAnnotations();
 							if (annotations.containsKey("volume.beta.kubernetes.io/storage-provisioner")) {
 								if (annotations.get("volume.beta.kubernetes.io/storage-provisioner").equals("wimsey.us/pvmanager")) {
-									createPVForPVC(client, pvc);
+									createPVForPVC(client, pvccn);
 								}
 							} else {
-								createPVForPVC(client, pvc);
+								createPVForPVC(client, pvccn);
 							}
 						} catch (JSchException e) {
 							LOG.error("SSH Exception: {}", e);
@@ -225,7 +253,7 @@ public class PVClaimWatcherService implements InitializingBean, DisposableBean {
 					case "bound": // this PVC is already handled, not sure why we're seeing it
 						break;
 					default:
-						LOG.error("Found pvc: " + pvc.getName() + "( " + pvc.getVolumeName() + ") " + pvc.getNamespace() + ": unknown state: " + pvc.getStatus());
+						LOG.error("Found pvc: " + pvccn.getName() + "( " + pvccn.getVolumeName() + ") " + pvccn.getNamespace() + ": unknown state: " + pvccn.getStatus());
 				}
 				break;
 
@@ -278,9 +306,14 @@ public class PVClaimWatcherService implements InitializingBean, DisposableBean {
 		persistentVolume.setReclaimPolicy("Retain");
 		persistentVolume.setCapacity(Long.valueOf(sSize), MemoryUnit.valueOf(mUnit));
 		persistentVolume.setPersistentVolumeProperties(persistentVolumeProperties);
+		persistentVolume.setAnnotation("managed-by", "pvmanager");
+		Map<String, String> pvcAnnotations = pvc.getAnnotations();
+		for(Map.Entry<String,String> annotation : pvcAnnotations.entrySet()) {
+			persistentVolume.setAnnotation(annotation.getKey(), annotation.getValue());
+		}
 		try {
 			persistentVolume = client.create(persistentVolume);
-			LOG.info("New PV created for PVC " + pvc.getName() + ": " + persistentVolumeProperties.toString());
+			LOG.info("New PV created for PVC " + pvc.getName() + " -> " + persistentVolume.getName() +  ": " + persistentVolumeProperties.toString());
 		} catch (Exception e) {
 			LOG.error("Exception: " + e.getMessage());
 		}

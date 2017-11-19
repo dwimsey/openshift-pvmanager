@@ -1,0 +1,38 @@
+---
+defaultStorageClass: basic
+storageProviders:
+  - storageClass: basic
+    managementProvider: NFS
+    configuration:
+      identity:
+        privateKeyFile:
+        privateKey:
+      provider: zfs
+      ssh:
+        hostname: ssh-pv-basic.default.svc.cluster.local
+        port: 22
+        identity: pvmanager
+        privateKeyFile: .ssh/id_rsa
+        token:
+      nfs:
+        hostname: nfs-pv-basic.default.svc.cluster.local
+        exportRoot: /exports/openshift/persistentvolumes/basic
+      zfs:
+        rootPath: zpool/persistentvolumes/basic
+        becomeRoot: true
+  - storageClass: ssd
+    managementProvider: NFS
+    configuration:
+      provider: zfs
+      ssh:
+        hostname: ssh-pv-ssd.default.svc.cluster.local
+        port: 22
+        identity: pvmanager
+        privateKeyFile: .ssh/id_rsa
+        token:
+      nfs:
+        hostname: nfs-pv-ssd.default.svc.cluster.local
+        exportRoot: /exports/openshift/persistentvolumes/ssd
+      zfs:
+        rootPath: zpool/persistentvolumes/ssd
+        becomeRoot: true
