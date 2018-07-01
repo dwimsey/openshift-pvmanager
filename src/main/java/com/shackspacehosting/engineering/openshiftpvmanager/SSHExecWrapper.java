@@ -45,7 +45,12 @@ public class SSHExecWrapper {
 
 		session = jsch.getSession(sshUsername, sshHostname, sshPort);
 		session.setConfig("StrictHostKeyChecking", "no");
-		session.connect(30000);
+		try {
+			session.connect(30000);
+		} catch(JSchException e) {
+			session = null;
+			throw e;
+		}
 	}
 
 	public int exec(String command, StringBuilder outputBuffer) throws JSchException, IOException {

@@ -1,9 +1,8 @@
 package com.shackspacehosting.engineering.openshiftpvmanager;
 
-import com.openshift.restclient.model.volume.property.IPersistentVolumeProperties;
-import com.openshift.restclient.utils.MemoryUnit;
 import com.shackspacehosting.engineering.openshiftpvmanager.storage.StorageControllerConfiguration;
 import com.shackspacehosting.engineering.openshiftpvmanager.storage.StorageProvider;
+import com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.NfsVolumeProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,22 +26,22 @@ public class ModularizedStorageController implements IStorageController {
 	}
 
 	@Override
-	public IPersistentVolumeProperties createPersistentVolume(UUID uuid, long aLong, MemoryUnit memoryUnit) {
-		return null;
+	public NfsVolumeProperties createPersistentVolume(UUID uuid, long sizeInBytes) throws Exception {
+		return createPersistentVolume(null, uuid, sizeInBytes);
 	}
 
 	@Override
-	public IPersistentVolumeProperties createPersistentVolume(Map<String, String> annotations, UUID uuid, long sizeInUnits, MemoryUnit unitSize) throws Exception {
+	public NfsVolumeProperties createPersistentVolume(Map<String, String> annotations, UUID uuid, long sizeInBytes) throws Exception {
 		String requestedStorageClass = storageControllerConfiguration.getDefaultStorageClass();
-		if(annotations.containsKey("storage-class")) {
+		if(annotations != null && annotations.containsKey("storage-class")) {
 			requestedStorageClass = annotations.get("storage-class");
 		}
 
-		IPersistentVolumeProperties props;
+		NfsVolumeProperties props = null;
 		for(StorageProvider provider : storageControllerConfiguration.getStorageProviders()) {
 			if(requestedStorageClass.compareTo(provider.getStorageClass()) == 0) {
 				// This provider serves the storage class requested, attempt to create the volume
-				props = provider.createPersistentVolume(annotations, uuid, sizeInUnits, unitSize);
+				props = provider.createPersistentVolume(annotations, uuid, sizeInBytes);
 				if(props != null) {
 					// The provider handled the request, no further processing is needed.
 					return props;

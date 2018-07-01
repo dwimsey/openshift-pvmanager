@@ -22,13 +22,15 @@ public class ObjectNameMapper {
 		if (name != null) {
 			annotations.put("name", name);
 		}
-		for(Map.Entry<String, String> e : annotationMap.entrySet()) {
-			if (e.getKey().equals("volume.beta.kubernetes.io/storage-provisioner")) {
-				annotations.put("storage-provisioner", e.getValue());
-			} else if (e.getKey().equals("volume.beta.kubernetes.io/storage-class")) {
-				annotations.put("storage-class", e.getValue());
-			} else {
-				annotations.put(e.getKey(), e.getValue());
+		if(annotationMap != null) {
+			for (Map.Entry<String, String> e : annotationMap.entrySet()) {
+				if (e.getKey().equals("volume.beta.kubernetes.io/storage-provisioner")) {
+					annotations.put("storage-provisioner", e.getValue());
+				} else if (e.getKey().equals("volume.beta.kubernetes.io/storage-class")) {
+					annotations.put("storage-class", e.getValue());
+				} else {
+					annotations.put(e.getKey(), e.getValue());
+				}
 			}
 		}
 		return annotations;

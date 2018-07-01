@@ -1,36 +1,32 @@
 package com.shackspacehosting.engineering.openshiftpvmanager;
 
-import com.openshift.restclient.model.volume.IPersistentVolumeClaim;
 
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 public class PVCChangeNotification {
 
-	public String updateType;
-	public String namespace;
-	public String name;
-	public Set<String> accessModes;
-	public String status;
-	public String requestedStorage;
-	public String volumeName;
-	public Map<String, String> metadata;
-	public Map<String, String> annotations;
-	public Map<String, String> labels;
+	public final String namespace;
+	public final List<String> accessModes;
+	public final String status;
+	public final BigDecimal requestedStorage;
+	public final String volumeName;
+	public final Map<String, String> annotations;
+	public final Map<String, String> labels;
 
-	public String getUpdateType() {
-		return updateType;
+	public String getChangeType() {
+		return changeType;
 	}
+
+	public final String changeType;
 
 	public String getNamespace() {
 		return namespace;
 	}
 
-	public String getName() {
-		return name;
-	}
-
-	public Set<String> getAccessModes() {
+	public List<String> getAccessModes() {
 		return accessModes;
 	}
 
@@ -38,16 +34,12 @@ public class PVCChangeNotification {
 		return status;
 	}
 
-	public String getRequestedStorage() {
+	public BigDecimal getRequestedStorage() {
 		return requestedStorage;
 	}
 
 	public String getVolumeName() {
 		return volumeName;
-	}
-
-	public Map<String, String> getMetadata() {
-		return metadata;
 	}
 
 	public Map<String, String> getAnnotations() {
@@ -58,17 +50,15 @@ public class PVCChangeNotification {
 		return labels;
 	}
 
-	public PVCChangeNotification(String updateType, IPersistentVolumeClaim pvc) {
-		this.updateType = updateType;
-		this.namespace = pvc.getNamespace();
-		this.name = pvc.getName();
-		this.accessModes = pvc.getAccessModes();
-		this.status = pvc.getStatus();
-		this.requestedStorage = pvc.getRequestedStorage();
-		this.volumeName = pvc.getVolumeName();
-		this.metadata = pvc.getMetadata();
-		this.labels = pvc.getLabels();
-		this.annotations = pvc.getAnnotations();
+	public PVCChangeNotification(String namespace, String volumeName, List<String> accessModes, Map<String, String> labels, Map<String, String> annotations, BigDecimal requestedStorage, String status, String changeType) {//, IPersistentVolumeClaim pvc) {
+		this.namespace = namespace;
+		this.volumeName = volumeName;
+		this.accessModes = accessModes;
+		this.status = status;
+		this.requestedStorage = requestedStorage;
+		this.labels = labels;
+		this.annotations = annotations;
+		this.changeType = changeType;
 	}
 
 	boolean Equals(Object o) {
@@ -81,14 +71,7 @@ public class PVCChangeNotification {
 		}
 
 		PVCChangeNotification otherPVCChangeNotification = (PVCChangeNotification)o;
-		if (!otherPVCChangeNotification.updateType.equals(this.updateType)) {
-			return false;
-		}
-
 		if(!otherPVCChangeNotification.namespace.equals(this.namespace)) {
-			return false;
-		}
-		if (!otherPVCChangeNotification.name.equals(this.name)) {
 			return false;
 		}
 		if (!otherPVCChangeNotification.accessModes.equals(this.accessModes)) {
@@ -103,13 +86,14 @@ public class PVCChangeNotification {
 		if (!otherPVCChangeNotification.volumeName.equals(this.volumeName)) {
 			return false;
 		}
-		if (!otherPVCChangeNotification.metadata.equals(this.metadata)) {
-			return false;
-		}
 		if (!otherPVCChangeNotification.labels.equals(this.labels)) {
 			return false;
 		}
 		if (!otherPVCChangeNotification.annotations.equals(this.annotations)) {
+			return false;
+		}
+
+		if(!otherPVCChangeNotification.changeType.equals(this.changeType)) {
 			return false;
 		}
 

@@ -1,9 +1,6 @@
 package com.shackspacehosting.engineering.openshiftpvmanager.storage.providers;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.openshift.internal.restclient.model.volume.property.NfsVolumeProperties;
-import com.openshift.restclient.model.volume.property.IPersistentVolumeProperties;
-import com.openshift.restclient.utils.MemoryUnit;
 import com.shackspacehosting.engineering.openshiftpvmanager.SSHExecWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -154,21 +151,10 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 		sshWrapper = new SSHExecWrapper(sshHostname, sshPort, sshUsername, sshPrivateKey, sshToken);
 	}
 
-	public IPersistentVolumeProperties createPersistentVolume(Map<String, String> annotations, UUID uuid, long sizeInUnits, MemoryUnit unitSize) throws Exception {
+	public NfsVolumeProperties createPersistentVolume(Map<String, String> annotations, UUID uuid, long sizeInBytes) throws Exception {
 		String suffixChar = null;
-		switch(unitSize) {
-			default:
-				LOG.error("Unknown unit type: " + unitSize.toString());
-			case Ki:
-			case Mi:
-			case Gi:
-			case Ti:
-			case Pi:
-			case Ei:
-				suffixChar = unitSize.toString().substring(0, 1);
-				break;
-		}
-		String command = (becomeRoot ? "sudo " : "") + "zfs create -o quota=" + sizeInUnits + suffixChar + " " + zfsRootPath + "/" + uuid.toString();
+
+		String command = (becomeRoot ? "sudo " : "") + "zfs create -o quota=" + sizeInBytes + " " + zfsRootPath + "/" + uuid.toString();
 
 		StringBuilder outputBuffer = new StringBuilder();
 
@@ -179,6 +165,7 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 			LOG.error(outputBuffer.toString());
 			return null;
 		}
+		// @TODO commented
 		return new NfsVolumeProperties(nfsHostname, nfsRootPath + "/" + uuid.toString(), false);
 	}
 

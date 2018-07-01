@@ -1,8 +1,7 @@
 package com.shackspacehosting.engineering.openshiftpvmanager.storage;
 
-import com.openshift.restclient.model.volume.property.IPersistentVolumeProperties;
-import com.openshift.restclient.utils.MemoryUnit;
 import com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.IStorageManagementProvider;
+import com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.NfsVolumeProperties;
 
 import java.util.Map;
 import java.util.UUID;
@@ -37,7 +36,7 @@ public class StorageProvider {
 	}
 
 
-	public IPersistentVolumeProperties createPersistentVolume(Map<String, String> annotations, UUID uuid, long sizeInUnits, MemoryUnit unitSize) throws Exception {
-		return managementProvider.createPersistentVolume(annotations, uuid, sizeInUnits, unitSize);
+	public NfsVolumeProperties createPersistentVolume(Map<String, String> annotations, UUID uuid, long sizeInUnits) throws Exception {
+		return managementProvider.createPersistentVolume(annotations, uuid, sizeInUnits);
 	}
 }
