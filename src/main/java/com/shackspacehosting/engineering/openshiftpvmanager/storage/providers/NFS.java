@@ -178,7 +178,7 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 			return null;
 		}
 		// @TODO commented
-		return new NfsVolumeProperties(nfsHostname, nfsRootPath + "/" + uuid.toString(), false);
+		return new NfsVolumeProperties(nfsHostname, nfsRootPath + "/" + uuid.toString(), false, null);
 	}
 
 	@Override

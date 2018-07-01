@@ -524,7 +524,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 		claimRef.setUid(pvc.getClaimUid());
 		spec.setClaimRef(claimRef);
 
-		metadata.setName("dynamic-" + pvc.getNamespace() + "-" + pvc.getVolumeName() + "-" + uuid.toString().substring(0,7));
+		metadata.setName(persistentVolumeProperties.getNamePrefix() + pvc.getNamespace() + "-" + pvc.getVolumeName() + "-" + uuid.toString().substring(0,7));
 		metadata.setAnnotations(annotations);
 
 		pv.setSpec(spec);

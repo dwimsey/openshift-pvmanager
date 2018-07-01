@@ -53,6 +53,9 @@ public class StorageControllerConfiguration {
 						case "storageClass":
 							provider.setStorageClass(ttt.getValue().asText());
 							break;
+						case "pvNamePrefix":
+							provider.setPvNamePrefix(ttt.getValue().asText());
+							break;
 						case "managementProvider":
 							String providerName = ttt.getValue().asText();
 							switch (providerName.toUpperCase()) {

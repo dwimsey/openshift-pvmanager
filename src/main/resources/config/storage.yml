@@ -3,6 +3,7 @@ defaultStorageClass: basic
 storageProviders:
   - storageClass: basic
     managementProvider: NFS
+    pvNamePrefix: basic-
     configuration:
       identity:
         privateKeyFile:
@@ -22,6 +23,7 @@ storageProviders:
         becomeRoot: true
   - storageClass: ssd
     managementProvider: NFS
+    pvNamePrefix: ssd-
     configuration:
       provider: zfs
       ssh:

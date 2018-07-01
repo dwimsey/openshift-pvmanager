@@ -43,4 +43,12 @@ public class StorageProvider {
 	public void removePersistentVolume(Map<String, String> annotations) throws Exception {
 		managementProvider.removePersistentVolume(annotations);
 	}
+
+	String pvNamePrefix;
+	public void setPvNamePrefix(String namePrefix) {
+		this.pvNamePrefix = namePrefix;
+	}
+	public String getPvNamePrefix() {
+		return pvNamePrefix;
+	}
 }
