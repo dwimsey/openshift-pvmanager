@@ -9,6 +9,10 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
 
+import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_BASE;
+import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_PROVIDER_TYPE;
+import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_VOLUME_UUID;
+
 public class NFS implements IStorageManagementProvider, AutoCloseable {
 	private static final Logger LOG = LoggerFactory.getLogger(NFS.class);
 
@@ -150,11 +154,19 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 	public void init() {
 		sshWrapper = new SSHExecWrapper(sshHostname, sshPort, sshUsername, sshPrivateKey, sshToken);
 	}
+	final public static String ANNOTATION_VOLUME_HOST = ANNOTATION_BASE + "nfs-host";
+	final public static String ANNOTATION_VOLUME_PATH = ANNOTATION_BASE + "nfs-path";
+	final public static String ANNOTATION_PROVIDER_TYPE_NAME = "sshnfs";
 
 	public NfsVolumeProperties createPersistentVolume(Map<String, String> annotations, UUID uuid, long sizeInBytes) throws Exception {
 		String suffixChar = null;
 
-		String command = (becomeRoot ? "sudo " : "") + "zfs create -o quota=" + sizeInBytes + " " + zfsRootPath + "/" + uuid.toString();
+		String zfsVolumePath = zfsRootPath + "/" + uuid.toString();
+		annotations.put(ANNOTATION_VOLUME_HOST, nfsHostname);
+		annotations.put(ANNOTATION_VOLUME_PATH, zfsVolumePath);
+		annotations.put(ANNOTATION_PROVIDER_TYPE, ANNOTATION_PROVIDER_TYPE_NAME);
+
+		String command = (becomeRoot ? "sudo " : "") + "zfs create -o quota=" + sizeInBytes + " " + zfsVolumePath;
 
 		StringBuilder outputBuffer = new StringBuilder();
 
@@ -167,6 +179,31 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 		}
 		// @TODO commented
 		return new NfsVolumeProperties(nfsHostname, nfsRootPath + "/" + uuid.toString(), false);
+	}
+
+	@Override
+	public void removePersistentVolume(Map<String, String> annotations) throws Exception {
+		String suffixChar = null;
+		if(annotations == null) {
+			throw new IllegalArgumentException("No annotations provided for persistent volume, " + ANNOTATION_VOLUME_UUID + " is required to delete volumes");
+		}
+		String uuid = annotations.get(ANNOTATION_VOLUME_UUID);
+		if(uuid == null) {
+			throw new IllegalArgumentException(ANNOTATION_VOLUME_UUID + " annotation not found, " + ANNOTATION_VOLUME_UUID + " is required to delete volumes");
+		}
+		// Convert it to a UUID object and then u.toString() to ensure theres no funny business being crafted here to break out of the shell
+		UUID u = UUID.fromString(uuid);
+		String command = (becomeRoot ? "sudo " : "") + "zfs destroy " + zfsRootPath + "/" + u.toString();
+
+		StringBuilder outputBuffer = new StringBuilder();
+
+		int xs = 0;
+		xs = sshWrapper.exec(command, outputBuffer);
+		if (xs != 0) {
+			LOG.error("Exit status: " + xs);
+			LOG.error(outputBuffer.toString());
+			return;
+		}
 	}
 
 	@Override

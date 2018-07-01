@@ -36,7 +36,11 @@ public class StorageProvider {
 	}
 
 
-	public NfsVolumeProperties createPersistentVolume(Map<String, String> annotations, UUID uuid, long sizeInUnits) throws Exception {
-		return managementProvider.createPersistentVolume(annotations, uuid, sizeInUnits);
+	public NfsVolumeProperties createPersistentVolume(Map<String, String> annotations, UUID uuid, long sizeInBytes) throws Exception {
+		return managementProvider.createPersistentVolume(annotations, uuid, sizeInBytes);
+	}
+
+	public void removePersistentVolume(Map<String, String> annotations) throws Exception {
+		managementProvider.removePersistentVolume(annotations);
 	}
 }

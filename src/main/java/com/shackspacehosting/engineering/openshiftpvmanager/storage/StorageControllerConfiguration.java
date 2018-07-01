@@ -6,8 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shackspacehosting.engineering.openshiftpvmanager.ModularizedStorageController;
 import com.shackspacehosting.engineering.openshiftpvmanager.kubernetes.ObjectNameMapper;
 import com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.NFS;
-import org.apache.commons.lang.builder.ReflectionToStringBuilder;
-import org.apache.commons.lang.builder.ToStringStyle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,8 +74,6 @@ public class StorageControllerConfiguration {
 		}
 
 		this.setStorageProviders(providers);
-
-		LOG.info(ReflectionToStringBuilder.toString(this, ToStringStyle.MULTI_LINE_STYLE));
 	}
 	private List<StorageProvider> storageProviders = new ArrayList<StorageProvider>();
 

@@ -6,6 +6,8 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import java.util.HashMap;
 import java.util.Map;
 
+import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_BASE;
+
 public class ObjectNameMapper {
 	static private ObjectMapper yamlObjectMapper = null;
 	static public ObjectMapper getYamlObjectMapper() {
@@ -17,10 +19,10 @@ public class ObjectNameMapper {
 	static public Map<String, String> mapKubernetesToPVManagerPVCAnnotations(String namespace, String name, Map<String, String> annotationMap) {
 		Map<String, String> annotations = new HashMap<String, String>();
 		if (namespace != null) {
-			annotations.put("namespace", namespace);
+			annotations.put(ANNOTATION_BASE + "pvc-namespace", namespace);
 		}
 		if (name != null) {
-			annotations.put("name", name);
+			annotations.put(ANNOTATION_BASE + "pvc-name", name);
 		}
 		if(annotationMap != null) {
 			for (Map.Entry<String, String> e : annotationMap.entrySet()) {

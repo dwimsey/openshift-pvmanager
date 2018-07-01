@@ -1,6 +1,14 @@
 package com.shackspacehosting.engineering.openshiftpvmanager.storage.providers;
 
+import io.kubernetes.client.models.V1NFSVolumeSource;
+
 public class NfsVolumeProperties {
+	public NfsVolumeProperties(V1NFSVolumeSource nfs) {
+		this.nfsHostname = nfs.getServer();
+		this.nfsExportPath = nfs.getPath();
+		this.readOnly = ((nfs.isReadOnly() != null) ? nfs.isReadOnly() : false);
+	}
+
 	public String getNfsHostname() {
 		return nfsHostname;
 	}

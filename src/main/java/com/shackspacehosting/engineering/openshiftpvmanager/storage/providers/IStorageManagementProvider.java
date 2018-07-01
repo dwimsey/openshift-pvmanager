@@ -5,5 +5,6 @@ import java.util.Map;
 import java.util.UUID;
 
 public interface IStorageManagementProvider {
-	public NfsVolumeProperties createPersistentVolume(Map<String, String> annotations, UUID uuid, long sizeInUnits/*, MemoryUnit unitSize*/) throws Exception;
+	NfsVolumeProperties createPersistentVolume(Map<String, String> annotations, UUID uuid, long sizeInBytes) throws Exception;
+	void removePersistentVolume(Map<String, String> annotations) throws Exception;
 }

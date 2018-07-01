@@ -4,7 +4,6 @@ import com.google.common.reflect.TypeToken;
 import com.shackspacehosting.engineering.openshiftpvmanager.kubernetes.ObjectNameMapper;
 import com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.NfsVolumeProperties;
 import io.kubernetes.client.ApiClient;
-import io.kubernetes.client.ApiException;
 import io.kubernetes.client.apis.CoreV1Api;
 import io.kubernetes.client.custom.Quantity;
 import io.kubernetes.client.models.*;
@@ -18,7 +17,6 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.access.method.P;
 import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.InitializingBean;
 
@@ -30,7 +28,6 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
 
 import static io.kubernetes.client.custom.Quantity.Format.BINARY_SI;
 
@@ -81,6 +78,12 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 
 	private Queue<PVCChangeNotification> pvcQueue;
 	private Queue<PVChangeNotification> pvQueue;
+
+	final public static String ANNOTATION_MANAGED_BY = "managed-by";
+	final public static String ANNOTATION_BASE = "us.wimsey.pvmanager/";
+	final public static String ANNOTATION_VOLUME_UUID = ANNOTATION_BASE + "volume-uuid";
+	final public static String ANNOTATION_PROVIDER_TYPE = ANNOTATION_BASE + "managed-provider";
+
 
 	@Override
 	public void afterPropertiesSet() throws Exception {
@@ -148,8 +151,9 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 								switch(status.getPhase()) {
 									case "Pending":
 										BigDecimal size = spec.getResources().getRequests().get("storage").getNumber();
-										LOG.info("Pending PVC (" + metadata.getNamespace() + ":" + metadata.getName() + ") size: " + size.toPlainString() + " -> " + item.type);
-
+										if(LOG.isDebugEnabled()) {
+											LOG.debug("Pending PVC (" + metadata.getNamespace() + ":" + metadata.getName() + ") size: " + size.toPlainString() + " -> " + item.type);
+										}
 										String volumeName = metadata.getName();
 										String namespace = metadata.getNamespace();
 										Map<String, String> annotations = metadata.getAnnotations();
@@ -160,11 +164,14 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 										}
 
 										List<String> accessModes = spec.getAccessModes();
-										PVCChangeNotification pvcChangeNotification = new PVCChangeNotification(namespace, volumeName, accessModes, labels, annotations, size, status.getPhase(), item.type);
+										PVCChangeNotification pvcChangeNotification = new PVCChangeNotification(namespace, volumeName, accessModes, labels, annotations, size, status.getPhase(), item.type, metadata.getUid());
 										pvcQueue.add(pvcChangeNotification);
 										break;
 									case "Bound":
 										LOG.trace("Bound PVC (" + metadata.getNamespace() + ":" + metadata.getName() + ")state: " + status.getPhase());
+										break;
+									case "Lost":
+										LOG.error("LOST PVC (" + metadata.getNamespace() + ":" + metadata.getName() + ")state: " + status.getPhase());
 										break;
 									default:
 										LOG.error("Unexpected PVC (" + metadata.getNamespace() + ":" + metadata.getName() + ") state: " + status.getPhase());
@@ -180,7 +187,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 						// We get interrupted when destroy() is called, so skip the delay below
 						continue;
 					} catch(Exception e) {
-						LOG.error("Unhandled crash in Persistent Volume Claim Manager (PVCW): " + e);
+						LOG.error("Unhandled exception in Persistent Volume Claim Manager (PVCW): " + e);
 					}
 
 					try {
@@ -204,13 +211,13 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 						}
 						PVCChangeNotification pvcChangeNotification = pvcQueue.poll();
 						while(pvcChangeNotification != null) {
-							LOG.info("pvcChangeNotification dequeued: {}", pvcChangeNotification.toString());
+							LOG.trace("pvcChangeNotification dequeued: {}", pvcChangeNotification.toString());
 							processPvcChange(client, pvcChangeNotification);
 							pvcChangeNotification = pvcQueue.poll();
 						}
 
 					} catch(Exception e) {
-						LOG.error("Unhandled crash in Persistent Volume Claim Notification Manager (PVCNMW): " + e);
+						LOG.error("Unhandled exception in Persistent Volume Claim Notification Manager (PVCNMW): " + e);
 						client = null;
 					}
 
@@ -244,42 +251,18 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 								V1PersistentVolumeStatus status = claim.getStatus();
 								V1ObjectMeta metadata = claim.getMetadata();
 								V1PersistentVolumeSpec spec = claim.getSpec();
+								Map<String, String> annotations = metadata.getAnnotations();
 
-								switch(status.getPhase()) {
-									case "Released":
-//										BigDecimal size = spec.get .getResources().getRequests().get("storage").getNumber();
-										String volumeName = metadata.getName();
-										String namespace = metadata.getNamespace();
-										Map<String, String> annotations = metadata.getAnnotations();
-										if(annotations != null && annotations.containsKey("managed-by")) {
-											if(annotations.get("managed-by").equals("pvmanager")) {
-												V1NFSVolumeSource nfsVolumeProperties = spec.getNfs();
-												LOG.info("Deleting NFS provisioned volume: " + nfsVolumeProperties.getServer() + ":" + nfsVolumeProperties.getPath());
-												V1DeleteOptions deleteOptions = new V1DeleteOptions();
-												deleteOptions.propagationPolicy("Background");
-												deleteOptions.setGracePeriodSeconds(0L);
-												deleteOptions.setKind(claim.getKind());
-												deleteOptions.setApiVersion(claim.getApiVersion());
-												V1Status statuss = api.deletePersistentVolume(volumeName, deleteOptions, null, null, null, null);
-												LOG.warn("Release Status: " + statuss.toString());
-												LOG.warn("Released PV: " + claim.toString());
-											}
-										}
-										break;
-									case "Bound":
-										LOG.info("Bound PV (" + metadata.getNamespace() + ":" + metadata.getName() + ") state: " + status.getPhase(), ": " + claim.toString());
-										break;
-									case "Available":
-										LOG.info("Available PV (" + metadata.getNamespace() + ":" + metadata.getName() + ") state: " + status.getPhase(), ": " + claim.toString());
-										break;
-									case "Pending":
-										LOG.info("Pending PV (" + metadata.getNamespace() + ":" + metadata.getName() + ") state: " + status.getPhase(), ": " + claim.toString());
-										break;
-									default:
-										LOG.error("Unexpected PV (" + metadata.getNamespace() + ":" + metadata.getName() + ") state: " + status.getPhase(), ": " + claim.toString());
-										break;
+								if(annotations != null && annotations.containsKey(ANNOTATION_MANAGED_BY)) {
+									if (annotations.get(ANNOTATION_MANAGED_BY).equals("pvmanager")) {
+									} else {
+										continue;
+									}
+								} else {
+									continue;
 								}
-//System.out.printf("%s : %s%n", item.type, claim.getKind());
+
+								pvQueue.add(new PVChangeNotification(metadata.getNamespace(), metadata.getName(), claim.getKind(), status.getPhase(), spec.getAccessModes(), metadata.getAnnotations(), metadata.getLabels(), new NfsVolumeProperties(spec.getNfs())));
 							}
 
 
@@ -292,7 +275,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 						// We get interrupted when destroy() is called, so skip the delay below
 						continue;
 					} catch(Exception e) {
-						LOG.error("Unhandled crash in Persistent Volume Manager (PVW): " + e);
+						LOG.error("Unhandled exception in Persistent Volume Manager (PVW): " + e);
 						e.printStackTrace();
 					}
 
@@ -311,23 +294,21 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 			public void run() {
 				ApiClient client = null;
 				while(!beanShouldStop) {
-					try {
-						if(client == null) {
-							client = getAuthenticatedApiClient();
-						}
-
-						PVChangeNotification pvChangeNotification = pvQueue.poll();
-						while(pvChangeNotification != null) {
-							LOG.trace("pvChangeNotification dequeued: {}", pvChangeNotification.toString());
+					PVChangeNotification pvChangeNotification = pvQueue.poll();
+					while(pvChangeNotification != null) {
+						LOG.trace("pvChangeNotification dequeued: {}", pvChangeNotification.toString());
+						try {
+							if(client == null) {
+								client = getAuthenticatedApiClient();
+							}
 							processPvChange(client, pvChangeNotification);
-							pvChangeNotification = pvQueue.poll();
+						} catch(Exception e) {
+							LOG.error("Unhandled exception in Persistent Volume Notifcation Manager (PVNMW): " + e);
+							client = null;
+							// @TODO Do something with the pvChangeNotification we just dropped on the floor
 						}
-
-					} catch(Exception e) {
-						LOG.error("Unhandled crash in Persistent Volume Notifcation Manager (PVNMW): " + e);
-						client = null;
+						pvChangeNotification = pvQueue.poll();
 					}
-
 					try {
 						Thread.sleep(watcherPollSleepTime);
 					} catch (InterruptedException e) {
@@ -338,10 +319,10 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 			}
 		});
 
-		pvChangeWatcherServiceThread.start();
 		pvChangeNotificationServiceThread.start();
-		pvcChangeWatcherServiceThread.start();
+		pvChangeWatcherServiceThread.start();
 		pvcChangeNotificationServiceThread.start();
+		pvcChangeWatcherServiceThread.start();
 	}
 
 	private void processPvcChange(ApiClient client, PVCChangeNotification pvcChangeNotification) {
@@ -361,7 +342,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 //						} catch (JSchException e) {
 //							LOG.error("SSH Exception: {}", e);
 						} catch (Exception e) {
-							LOG.error("Exception in something weird internally: {}", e);
+							LOG.error("Exception in something weird internally: " + e);
 						}
 						break;
 					case "lost": // don't do anything with this one atm, openshift won't remap to a new available PV so theres no point in creating one
@@ -376,8 +357,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 				// can we do anything here?
 				break;
 			case "deleted":
-				// We should trigger the process of cleansing the associated PV
-				LOG.error("Delete pvc: " + "----??----" + "( " + pvcChangeNotification.getVolumeName() + ") " + pvcChangeNotification.getNamespace() + ": " + pvcChangeNotification.getStatus() + " !! " + pvcChangeNotification.getChangeType());
+				LOG.trace("Delete pvc: " + "----??----" + "( " + pvcChangeNotification.getVolumeName() + ") " + pvcChangeNotification.getNamespace() + ": " + pvcChangeNotification.getStatus() + " !! " + pvcChangeNotification.getChangeType());
 				break;
 			default:
 				// We should trigger the process of cleansing the associated PV
@@ -418,46 +398,91 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 	@Override
 	public void destroy() throws Exception {
 		beanShouldStop = true;
+		if(pvcChangeWatcherServiceThread != null) {
+			pvcChangeWatcherServiceThread.interrupt();
+		}
 		if(pvChangeWatcherServiceThread != null) {
 			pvChangeWatcherServiceThread.interrupt();
 			pvChangeWatcherServiceThread.join();
 		}
+		if(pvcChangeWatcherServiceThread != null) {
+			pvcChangeWatcherServiceThread.join();
+		}
+
+
+
 		if(pvChangeNotificationServiceThread != null) {
 			pvChangeNotificationServiceThread.interrupt();
-			pvChangeNotificationServiceThread.join();
-		}
-		if(pvcChangeWatcherServiceThread != null) {
-			pvcChangeWatcherServiceThread.interrupt();
-			pvcChangeWatcherServiceThread.join();
 		}
 		if(pvcChangeNotificationServiceThread != null) {
 			pvcChangeNotificationServiceThread.interrupt();
 			pvcChangeNotificationServiceThread.join();
 		}
-	}
-
-	private void processPvChange(ApiClient client, PVChangeNotification pvcn) {
-		LOG.info(" Event for resource: {}", pvcn.getName());
-		LOG.info("       Access Modes: {}", pvcn.getAccessModes());
-
-		Map<String, String> annotations = pvcn.getAnnotations();
-		if(annotations != null) {
-			String annotationValue = annotations.getOrDefault("managed-by", null);
-			if ("pvmanager".equals(annotationValue)) {
-				// This application is the owner of this pv, lets see what we need to do with it
-			}
+		if(pvChangeNotificationServiceThread != null) {
+			pvChangeNotificationServiceThread.join();
 		}
 	}
 
+	private void processPvChange(ApiClient client, PVChangeNotification pvcn) throws Exception {
+		Map<String, String> annotations = pvcn.getAnnotations();
+		if(annotations == null) {
+			// No annotations, we can't possibly own this item
+			LOG.trace("PV Notification is not for this controller: no annotations");
+			return;
+		} else {
+			String annotationValue = annotations.getOrDefault(ANNOTATION_MANAGED_BY, null);
+			if ("pvmanager".equals(annotationValue) == false) {
+				// This application is not the owner of this pv, ignore this notification
+				LOG.trace("PV Notification is not for this controller: " + ANNOTATION_MANAGED_BY + ": {}", annotationValue);
+				return;
+			}
+		}
+
+		switch(pvcn.getUpdateType()) {
+			case "Released":
+				// @TODO Clean up nfs share
+				removePV(client, pvcn);
+				break;
+			case "Bound":
+				LOG.trace("Bound PV (" + pvcn.getNamespace() + ":" + pvcn.getName() + ") state: " + pvcn.getUpdateType());
+				break;
+			case "Available":
+				LOG.info("Available PV (" + pvcn.getNamespace() + ":" + pvcn.getName() + ") state: " + pvcn.getUpdateType());
+				break;
+			case "Pending":
+				LOG.debug("Pending PV (" + pvcn.getNamespace() + ":" + pvcn.getName() + ") state: " + pvcn.getUpdateType());
+				break;
+			default:
+				LOG.error("Unexpected PV (" + pvcn.getNamespace() + ":" + pvcn.getName() + ") state: " + pvcn.getUpdateType());
+				break;
+		}
+	}
+
+
+	private void removePV(ApiClient client, PVChangeNotification pvcn) throws Exception {
+		String volumeName = pvcn.getName();
+		String namespace = pvcn.getNamespace();
+
+		storageController.removePersistentVolume(pvcn.getAnnotations());
+
+
+		V1DeleteOptions deleteOptions = new V1DeleteOptions();
+		CoreV1Api api = new CoreV1Api(client);
+		api.deletePersistentVolume(volumeName, deleteOptions, null, null, null, null);
+	}
 
 	private void createPVForPVC(ApiClient client, PVCChangeNotification pvc) throws IOException {//}, JSchException {
 		BigDecimal requestedStorageInBytes = pvc.getRequestedStorage();
 		UUID uuid = UUID.randomUUID();
 
+		Map<String, String> annotations = ObjectNameMapper.mapKubernetesToPVManagerPVCAnnotations(pvc.getNamespace(), pvc.getVolumeName(), pvc.getAnnotations());
+		annotations.put(ANNOTATION_MANAGED_BY, "pvmanager");
+		annotations.put(ANNOTATION_VOLUME_UUID, uuid.toString());
+
 		NfsVolumeProperties persistentVolumeProperties = null;
 		try {
 			persistentVolumeProperties = storageController.createPersistentVolume(
-					ObjectNameMapper.mapKubernetesToPVManagerPVCAnnotations(pvc.getNamespace(), pvc.getVolumeName(), pvc.getAnnotations()),
+					annotations,
 					uuid,
 					Long.valueOf(requestedStorageInBytes.toPlainString()));
 			if (persistentVolumeProperties == null) {
@@ -477,9 +502,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 		Map<String, Quantity> capacity = new HashMap<String, Quantity>();
 		V1NFSVolumeSource nfsSource = new V1NFSVolumeSource();
 		V1ObjectMeta metadata = new V1ObjectMeta();
-		Map<String, String> annotations = new HashMap<>();
 
-		annotations.put("managed-by", "pvmanager");
 
 		accessModes.add("ReadWriteOnce");
 
@@ -494,9 +517,14 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 		spec.setPersistentVolumeReclaimPolicy("Retain");
 		spec.setCapacity(capacity);
 		spec.setNfs(nfsSource);
-		//spec.setClaimRef();
 
-		metadata.setName("dynamic-" + pvc.getNamespace() + "-" + uuid.toString());
+		V1ObjectReference claimRef = new V1ObjectReference();
+		claimRef.setNamespace(pvc.getNamespace());
+		claimRef.setName(pvc.getVolumeName());
+		claimRef.setUid(pvc.getClaimUid());
+		spec.setClaimRef(claimRef);
+
+		metadata.setName("dynamic-" + pvc.getNamespace() + "-" + pvc.getVolumeName() + "-" + uuid.toString().substring(0,7));
 		metadata.setAnnotations(annotations);
 
 		pv.setSpec(spec);
@@ -504,7 +532,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 
 		try {
 			V1PersistentVolume npv = api.createPersistentVolume(pv, null);
-			LOG.info("New PV created for PVC " + pvc.getVolumeName() + " -> " + npv.getMetadata().getName() +  ": " + persistentVolumeProperties.toString());
+			LOG.info("PV created for PVC " + pvc.getNamespace() + "-" + pvc.getVolumeName() + " -> " + npv.getMetadata().getName() +  " on " + persistentVolumeProperties.getNfsHostname() + ":" + persistentVolumeProperties.getNfsExportPath());
 		} catch (Exception e) {
 			LOG.error("Exception: " + e.getMessage());
 		}

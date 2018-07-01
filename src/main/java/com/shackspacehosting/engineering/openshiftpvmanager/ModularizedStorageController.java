@@ -39,8 +39,10 @@ public class ModularizedStorageController implements IStorageController {
 
 		NfsVolumeProperties props = null;
 		for(StorageProvider provider : storageControllerConfiguration.getStorageProviders()) {
+			LOG.trace("Testing storage provider: " + provider.getStorageClass());
 			if(requestedStorageClass.compareTo(provider.getStorageClass()) == 0) {
 				// This provider serves the storage class requested, attempt to create the volume
+				LOG.debug("Trying provider: " + provider.getClass().getName());
 				props = provider.createPersistentVolume(annotations, uuid, sizeInBytes);
 				if(props != null) {
 					// The provider handled the request, no further processing is needed.
@@ -49,7 +51,30 @@ public class ModularizedStorageController implements IStorageController {
 			}
 		}
 
+		LOG.error("Could not find a storage provider to service the request: " + requestedStorageClass);
 		// No providers were able to successfully provide a volume for this request
 		return null;
+	}
+
+	@Override
+	public void removePersistentVolume(Map<String, String> annotations) throws Exception {
+		String requestedStorageClass = storageControllerConfiguration.getDefaultStorageClass();
+		if(annotations != null && annotations.containsKey("storage-class")) {
+			requestedStorageClass = annotations.get("storage-class");
+		}
+
+		NfsVolumeProperties props = null;
+		for(StorageProvider provider : storageControllerConfiguration.getStorageProviders()) {
+			LOG.trace("Testing storage provider: " + provider.getStorageClass());
+			if(requestedStorageClass.compareTo(provider.getStorageClass()) == 0) {
+				// This provider serves the storage class requested, attempt to create the volume
+				LOG.debug("Trying provider: " + provider.getClass().getName());
+				provider.removePersistentVolume(annotations);
+				return;
+			}
+		}
+
+		LOG.error("Could not find a storage provider to service the request: " + requestedStorageClass);
+		// No providers were able to successfully provide a volume for this request
 	}
 }

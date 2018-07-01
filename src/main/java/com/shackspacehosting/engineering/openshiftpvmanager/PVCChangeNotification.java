@@ -1,5 +1,6 @@
 package com.shackspacehosting.engineering.openshiftpvmanager;
 
+//import com.openshift.restclient.model.volume.IPersistentVolumeClaim;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -15,6 +16,12 @@ public class PVCChangeNotification {
 	public final String volumeName;
 	public final Map<String, String> annotations;
 	public final Map<String, String> labels;
+
+	public String getClaimUid() {
+		return claimUid;
+	}
+
+	public final String claimUid;
 
 	public String getChangeType() {
 		return changeType;
@@ -50,7 +57,7 @@ public class PVCChangeNotification {
 		return labels;
 	}
 
-	public PVCChangeNotification(String namespace, String volumeName, List<String> accessModes, Map<String, String> labels, Map<String, String> annotations, BigDecimal requestedStorage, String status, String changeType) {//, IPersistentVolumeClaim pvc) {
+	public PVCChangeNotification(String namespace, String volumeName, List<String> accessModes, Map<String, String> labels, Map<String, String> annotations, BigDecimal requestedStorage, String status, String changeType, String claimUid) {
 		this.namespace = namespace;
 		this.volumeName = volumeName;
 		this.accessModes = accessModes;
@@ -59,6 +66,7 @@ public class PVCChangeNotification {
 		this.labels = labels;
 		this.annotations = annotations;
 		this.changeType = changeType;
+		this.claimUid = claimUid;
 	}
 
 	boolean Equals(Object o) {
