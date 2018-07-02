@@ -35,6 +35,25 @@ import static io.kubernetes.client.custom.Quantity.Format.BINARY_SI;
 public class PVClaimManagerService implements InitializingBean, DisposableBean {
 	private static final Logger LOG = LoggerFactory.getLogger(PVClaimManagerService.class);
 
+	final public static String ANNOTATION_MANAGED_BY = "managed-by";
+	final public static String ANNOTATION_BASE = "pvmanager.wimsey.us/";
+	final public static String ANNOTATION_VOLUME_UUID = ANNOTATION_BASE + "volume-uuid";
+	final public static String ANNOTATION_PROVIDER_TYPE = ANNOTATION_BASE + "managed-provider";
+	final public static String ANNOTATION_CLONEFROM = ANNOTATION_BASE + "clone-from";
+	final public static String ANNOTATION_BLOCKSIZE = ANNOTATION_BASE + "blocksize";
+	final public static String ANNOTATION_CHECKSUM_MODE = ANNOTATION_BASE + "checksum";
+	final public static String ANNOTATION_COMPRESSION_MODE = ANNOTATION_BASE + "compression";
+	final public static String ANNOTATION_ATIME = ANNOTATION_BASE + "atime";
+	final public static String ANNOTATION_EXEC = ANNOTATION_BASE + "exec";
+
+	final public static String ANNOTATION_LOGBIAS = ANNOTATION_BASE + "logbias";
+	final public static String ANNOTATION_SNAPDIR = ANNOTATION_BASE + "snapdir";
+	final public static String ANNOTATION_SYNC = ANNOTATION_BASE + "sync";
+	final public static String ANNOTATION_CASESENSITIVE = ANNOTATION_BASE + "casesensitive";
+
+
+
+
 	@Value("${kubernetes.service.scheme:https}")
 	private String kubernetesServiceScheme;
 
@@ -78,11 +97,6 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 
 	private Queue<PVCChangeNotification> pvcQueue;
 	private Queue<PVChangeNotification> pvQueue;
-
-	final public static String ANNOTATION_MANAGED_BY = "managed-by";
-	final public static String ANNOTATION_BASE = "us.wimsey.pvmanager/";
-	final public static String ANNOTATION_VOLUME_UUID = ANNOTATION_BASE + "volume-uuid";
-	final public static String ANNOTATION_PROVIDER_TYPE = ANNOTATION_BASE + "managed-provider";
 
 
 	@Override
@@ -143,7 +157,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 								new TypeToken<Watch.Response<V1PersistentVolumeClaim>>(){}.getType())) {
 
 							for (Watch.Response<V1PersistentVolumeClaim> item : watch) {
-								V1PersistentVolumeClaim claim = (V1PersistentVolumeClaim)item.object;
+								V1PersistentVolumeClaim claim = item.object;
 								V1PersistentVolumeClaimStatus status = claim.getStatus();
 								V1ObjectMeta metadata = claim.getMetadata();
 								V1PersistentVolumeClaimSpec spec = claim.getSpec();
@@ -262,7 +276,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 									continue;
 								}
 
-								pvQueue.add(new PVChangeNotification(metadata.getNamespace(), metadata.getName(), claim.getKind(), status.getPhase(), spec.getAccessModes(), metadata.getAnnotations(), metadata.getLabels(), new NfsVolumeProperties(spec.getNfs())));
+								pvQueue.add(new PVChangeNotification(metadata.getName(), claim.getKind(), status.getPhase(), spec.getAccessModes(), metadata.getAnnotations(), metadata.getLabels(), new NfsVolumeProperties(spec.getNfs())));
 							}
 
 
@@ -444,16 +458,16 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 				removePV(client, pvcn);
 				break;
 			case "Bound":
-				LOG.trace("Bound PV (" + pvcn.getNamespace() + ":" + pvcn.getName() + ") state: " + pvcn.getUpdateType());
+				LOG.trace("Bound PV (" + pvcn.getName() + ") state: " + pvcn.getUpdateType());
 				break;
 			case "Available":
-				LOG.info("Available PV (" + pvcn.getNamespace() + ":" + pvcn.getName() + ") state: " + pvcn.getUpdateType());
+				LOG.info("Available PV (" + pvcn.getName() + ") state: " + pvcn.getUpdateType());
 				break;
 			case "Pending":
-				LOG.debug("Pending PV (" + pvcn.getNamespace() + ":" + pvcn.getName() + ") state: " + pvcn.getUpdateType());
+				LOG.debug("Pending PV (" + pvcn.getName() + ") state: " + pvcn.getUpdateType());
 				break;
 			default:
-				LOG.error("Unexpected PV (" + pvcn.getNamespace() + ":" + pvcn.getName() + ") state: " + pvcn.getUpdateType());
+				LOG.error("Unexpected PV (" + ":" + pvcn.getName() + ") state: " + pvcn.getUpdateType());
 				break;
 		}
 	}
@@ -461,10 +475,8 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 
 	private void removePV(ApiClient client, PVChangeNotification pvcn) throws Exception {
 		String volumeName = pvcn.getName();
-		String namespace = pvcn.getNamespace();
 
 		storageController.removePersistentVolume(pvcn.getAnnotations());
-
 
 		V1DeleteOptions deleteOptions = new V1DeleteOptions();
 		CoreV1Api api = new CoreV1Api(client);

@@ -9,9 +9,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
 
-import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_BASE;
-import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_PROVIDER_TYPE;
-import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_VOLUME_UUID;
+import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.*;
 
 public class NFS implements IStorageManagementProvider, AutoCloseable {
 	private static final Logger LOG = LoggerFactory.getLogger(NFS.class);
@@ -156,29 +154,140 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 	}
 	final public static String ANNOTATION_VOLUME_HOST = ANNOTATION_BASE + "nfs-host";
 	final public static String ANNOTATION_VOLUME_PATH = ANNOTATION_BASE + "nfs-path";
+	final public static String ANNOTATION_VOLUME_EXPORT = ANNOTATION_BASE + "nfs-export";
 	final public static String ANNOTATION_PROVIDER_TYPE_NAME = "sshnfs";
 
 	public NfsVolumeProperties createPersistentVolume(Map<String, String> annotations, UUID uuid, long sizeInBytes) throws Exception {
-		String suffixChar = null;
+		String command;
+		int cmdReturnValue = 0;
 
 		String zfsVolumePath = zfsRootPath + "/" + uuid.toString();
+		String exportPath = nfsRootPath + "/" + uuid.toString();
+
 		annotations.put(ANNOTATION_VOLUME_HOST, nfsHostname);
 		annotations.put(ANNOTATION_VOLUME_PATH, zfsVolumePath);
+		annotations.put(ANNOTATION_VOLUME_EXPORT, exportPath);
 		annotations.put(ANNOTATION_PROVIDER_TYPE, ANNOTATION_PROVIDER_TYPE_NAME);
 
-		String command = (becomeRoot ? "sudo " : "") + "zfs create -o quota=" + sizeInBytes + " " + zfsVolumePath;
+		String extraArgs = "";
+
+
+		int maxBlockSize = 1048576; // If
+		maxBlockSize = 131072;
+		String blockSizeStr = annotations.get(ANNOTATION_BLOCKSIZE);
+		if(blockSizeStr != null) {
+			int blockSize = Integer.valueOf(blockSizeStr);
+			if(blockSize >= 512 && blockSize <= maxBlockSize && ((blockSize & (blockSize - 1)) == 0)) {
+				extraArgs = extraArgs + " -o recordsize=" + blockSize;
+			}
+		}
+		String checksumMode = annotations.get(ANNOTATION_CHECKSUM_MODE);
+		if(checksumMode != null) {
+			switch(checksumMode.toLowerCase()) {
+				case "on":
+				case "off":
+				case "fletcher2":
+				case "fletcher4":
+				case "sha256":
+				case "noparity":
+				case "sha512":
+				case "skein":
+					extraArgs = extraArgs + " -o checksum=" + checksumMode.toLowerCase();
+					break;
+			}
+		}
+		String compressionMode = annotations.get(ANNOTATION_COMPRESSION_MODE);
+		if(compressionMode != null) {
+			switch(compressionMode.toLowerCase()) {
+				case "on":
+				case "off":
+				case "lzjb":
+				case "zle":
+				case "lz4":
+				case "gzip":
+				case "gzip-1":
+				case "gzip-2":
+				case "gzip-3":
+				case "gzip-4":
+				case "gzip-5":
+				case "gzip-6":
+				case "gzip-7":
+				case "gzip-8":
+				case "gzip-9":
+					extraArgs = extraArgs + " -o compression=" + compressionMode.toLowerCase();
+					break;
+			}
+		}
+		String atimeMode = annotations.get(ANNOTATION_ATIME);
+		if(atimeMode != null) {
+			switch(atimeMode.toLowerCase()) {
+				case "on":
+				case "off":
+					extraArgs = extraArgs + " -o atime=" + atimeMode.toLowerCase();
+					break;
+			}
+		}
+		String execMode = annotations.get(ANNOTATION_EXEC);
+		if(execMode != null) {
+			switch(execMode.toLowerCase()) {
+				case "on":
+				case "off":
+					extraArgs = extraArgs + " -o exec=" + execMode.toLowerCase();
+					break;
+			}
+		}
+		String logMode = annotations.get(ANNOTATION_LOGBIAS);
+		if(logMode != null) {
+			switch(logMode.toLowerCase()) {
+				case "latency":
+				case "throughput":
+					extraArgs = extraArgs + " -o logbias=" + logMode.toLowerCase();
+					break;
+			}
+		}
+		String snapMode = annotations.get(ANNOTATION_SNAPDIR);
+		if(snapMode != null) {
+			switch(snapMode.toLowerCase()) {
+				case "hidden":
+				case "visible":
+					extraArgs = extraArgs + " -o snapdir=" + snapMode.toLowerCase();
+					break;
+			}
+		}
+		String syncMode = annotations.get(ANNOTATION_SYNC);
+		if(syncMode != null) {
+			switch(syncMode.toLowerCase()) {
+				case "standard":
+				case "always":
+				case "disabled":
+					extraArgs = extraArgs + " -o sync=" + syncMode.toLowerCase();
+					break;
+			}
+		}
+		String caseMode = annotations.get(ANNOTATION_CASESENSITIVE);
+		if(caseMode != null) {
+			switch(caseMode.toLowerCase()) {
+				case "sensitive":
+				case "insensitive":
+				case "mixed":
+					extraArgs = extraArgs + " -o casesensitivity=" + caseMode.toLowerCase();
+					break;
+			}
+		}
+
+			command = (becomeRoot ? "sudo " : "") + "zfs create -o quota=" + sizeInBytes + extraArgs + " " + zfsVolumePath;
+
 
 		StringBuilder outputBuffer = new StringBuilder();
 
-		int xs = 0;
-		xs = sshWrapper.exec(command, outputBuffer);
-		if (xs != 0) {
-			LOG.error("Exit status: " + xs);
+		cmdReturnValue = sshWrapper.exec(command, outputBuffer);
+		if (cmdReturnValue != 0) {
+			LOG.error("Exit status: " + cmdReturnValue);
 			LOG.error(outputBuffer.toString());
 			return null;
 		}
 		// @TODO commented
-		return new NfsVolumeProperties(nfsHostname, nfsRootPath + "/" + uuid.toString(), false, null);
+		return new NfsVolumeProperties(nfsHostname, exportPath, false, null);
 	}
 
 	@Override

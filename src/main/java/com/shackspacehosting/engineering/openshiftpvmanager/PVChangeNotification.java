@@ -10,7 +10,6 @@ import java.util.UUID;
 
 public class PVChangeNotification {
 
-	final private String namespace;
 	final private String name;
 	final private String kind;
 	final private String updateType;
@@ -19,9 +18,8 @@ public class PVChangeNotification {
 	final private Map<String, String> labels;
 	final private NfsVolumeProperties nfsVolumeProperties;
 
-	public PVChangeNotification(String namespace, String name, String kind, String updateType, List<String> accessModes, Map<String, String> annotations, Map<String, String> labels, NfsVolumeProperties nfsVolumeProperties) {
+	public PVChangeNotification(String name, String kind, String updateType, List<String> accessModes, Map<String, String> annotations, Map<String, String> labels, NfsVolumeProperties nfsVolumeProperties) {
 		this.updateType = updateType;
-		this.namespace = namespace;
 		this.name = name;
 		this.kind = kind;
 		this.accessModes = accessModes;
@@ -41,10 +39,6 @@ public class PVChangeNotification {
 
 		PVChangeNotification otherPVCChangeNotification = (PVChangeNotification)o;
 		if (!otherPVCChangeNotification.updateType.equals(this.updateType)) {
-			return false;
-		}
-
-		if(!otherPVCChangeNotification.namespace.equals(this.namespace)) {
 			return false;
 		}
 		if (!otherPVCChangeNotification.name.equals(this.name)) {
@@ -69,10 +63,6 @@ public class PVChangeNotification {
 
 	public String getUpdateType() {
 		return updateType;
-	}
-
-	public String getNamespace() {
-		return namespace;
 	}
 
 	public String getName() {
