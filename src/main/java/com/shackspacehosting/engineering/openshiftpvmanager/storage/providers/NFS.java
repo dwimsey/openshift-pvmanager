@@ -155,14 +155,14 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 	final public static String ANNOTATION_VOLUME_HOST = ANNOTATION_BASE + "nfs-host";
 	final public static String ANNOTATION_VOLUME_PATH = ANNOTATION_BASE + "nfs-path";
 	final public static String ANNOTATION_VOLUME_EXPORT = ANNOTATION_BASE + "nfs-export";
-	final public static String ANNOTATION_PROVIDER_TYPE_NAME = "sshnfs";
+	final public static String ANNOTATION_PROVIDER_TYPE_NAME = "nfs";
 
 	public NfsVolumeProperties createPersistentVolume(Map<String, String> annotations, UUID uuid, long sizeInBytes) throws Exception {
 		String command;
 		int cmdReturnValue = 0;
 
-		String zfsVolumePath = zfsRootPath + "/" + uuid.toString();
-		String exportPath = nfsRootPath + "/" + uuid.toString();
+		String zfsVolumePath = Paths.get(zfsRootPath, uuid.toString()).toString();
+		String exportPath = Paths.get(nfsRootPath, uuid.toString()).toString();
 
 		annotations.put(ANNOTATION_VOLUME_HOST, nfsHostname);
 		annotations.put(ANNOTATION_VOLUME_PATH, zfsVolumePath);
@@ -302,7 +302,7 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 		}
 		// Convert it to a UUID object and then u.toString() to ensure theres no funny business being crafted here to break out of the shell
 		UUID u = UUID.fromString(uuid);
-		String command = (becomeRoot ? "sudo " : "") + "zfs destroy " + zfsRootPath + "/" + u.toString();
+		String command = (becomeRoot ? "sudo " : "") + "zfs destroy " + Paths.get(zfsRootPath, u.toString()).toString();
 
 		StringBuilder outputBuffer = new StringBuilder();
 
