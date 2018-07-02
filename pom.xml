@@ -5,7 +5,7 @@
 
 	<groupId>com.shackspacehosting</groupId>
 	<artifactId>openshift-pvmanager</artifactId>
-	<version>0.0.2-SNAPSHOT</version>
+	<version>1.0.0</version>
 	<packaging>jar</packaging>
 
 	<name>openshift-pvmanager</name>
