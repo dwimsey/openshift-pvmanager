@@ -35,7 +35,12 @@ import static io.kubernetes.client.custom.Quantity.Format.BINARY_SI;
 public class PVClaimManagerService implements InitializingBean, DisposableBean {
 	private static final Logger LOG = LoggerFactory.getLogger(PVClaimManagerService.class);
 
+	final public static String ANNOTATION_KUBERNETES_STORAGE_PROVISIONER = "volume.beta.kubernetes.io/storage-provisioner";
+	final public static String ANNOTATION_KUBERNETES_STORAGE_CLASS = "volume.beta.kubernetes.io/storage-class";
+
 	final public static String ANNOTATION_MANAGED_BY = "managed-by";
+	final public static String ANNOTATION_STORAGE_PROVISIONER_NAME = "wimsey.us/pvmanager";
+
 	final public static String ANNOTATION_BASE = "pvmanager.wimsey.us/";
 	final public static String ANNOTATION_VOLUME_UUID = ANNOTATION_BASE + "volume-uuid";
 	final public static String ANNOTATION_PROVIDER_TYPE = ANNOTATION_BASE + "managed-provider";
@@ -51,7 +56,11 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 	final public static String ANNOTATION_SYNC = ANNOTATION_BASE + "sync";
 	final public static String ANNOTATION_CASESENSITIVE = ANNOTATION_BASE + "casesensitive";
 
+	final public static String ANNOTATION_STORAGE_PROVISIONER = "storage-provisioner";
+	final public static String ANNOTATION_STORAGE_CLASS = "storage-class";
 
+	final public static String ANNOTATION_PVMANAGER_PVCNAMESPACE = ANNOTATION_BASE + "pvc-namespace";
+	final public static String ANNOTATION_PVMANAGER_PVCNAME = ANNOTATION_BASE + "pvc-name";
 
 
 	@Value("${kubernetes.service.scheme:https}")

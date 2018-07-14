@@ -2,6 +2,7 @@ package com.shackspacehosting.engineering.openshiftpvmanager.storage.providers;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.shackspacehosting.engineering.openshiftpvmanager.SSHExecWrapper;
+import com.shackspacehosting.engineering.openshiftpvmanager.storage.StorageProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,6 +15,8 @@ import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManage
 
 public class NFS implements IStorageManagementProvider, AutoCloseable {
 	private static final Logger LOG = LoggerFactory.getLogger(NFS.class);
+
+	final public static String ANNOTATION_PVMANAGER_PVREF = "pvmanager:pvref";
 
 	private SSHExecWrapper sshWrapper;
 
@@ -103,11 +106,10 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 		this.zfsRootPath = zfsRootPath;
 	}
 
-	public NFS() {
-	}
+	final private StorageProvider provider;
+	public NFS(StorageProvider provider, JsonNode cfgNode) throws IOException {
+		this.provider=provider;
 
-
-	public NFS(JsonNode cfgNode) throws IOException {
 		JsonNode nfsCfgNode = cfgNode.get("nfs");
 		if (nfsCfgNode != null) {
 			this.nfsHostname = nfsCfgNode.get("hostname").asText();
@@ -135,20 +137,6 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 
 		this.init();
 	}
-
-	public NFS(String nfsHostname, String nfsRoot, String zfsRoot, boolean become, String sshHostname, int sshPort, String sshKeyfile, String sshToken) {
-		this.nfsHostname = nfsHostname;
-		this.nfsRootPath = nfsRoot;
-		this.zfsRootPath = zfsRoot;
-		this.becomeRoot = become;
-		this.sshHostname = sshHostname;
-		this.sshPort = sshPort;
-		this.sshPrivateKey = sshKeyfile;
-		this.sshToken = sshToken;
-
-		this.init();
-	}
-
 
 	public void init() {
 		sshWrapper = new SSHExecWrapper(sshHostname, sshPort, sshUsername, sshPrivateKey, sshToken);
@@ -276,14 +264,28 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 			}
 		}
 
+		// Add user attribute pointing to the name of the PV that was created for it
+		extraArgs = extraArgs + " -o " + ANNOTATION_PVMANAGER_PVREF + "=" +
+				provider.getPvNamePrefix() +
+				annotations.get(ANNOTATION_PVMANAGER_PVCNAMESPACE) + "-" +
+				annotations.get(ANNOTATION_PVMANAGER_PVCNAME) + "-" +
+				uuid.toString().substring(0,7);
+
+		String zfsCloneSourceVolumePath = annotations.get(ANNOTATION_CLONEFROM);
+//		if(zfsCloneSourceVolumePath != null) {
+//			command = (becomeRoot ? "sudo " : "") + "zfs clone -o quota=" + sizeInBytes + extraArgs + " " + zfsCloneSourceVolumePath + " " + zfsVolumePath;
+//		} else {
 			command = (becomeRoot ? "sudo " : "") + "zfs create -o quota=" + sizeInBytes + extraArgs + " " + zfsVolumePath;
+//		}
+
+
 
 
 		StringBuilder outputBuffer = new StringBuilder();
 
 		cmdReturnValue = sshWrapper.exec(command, outputBuffer);
 		if (cmdReturnValue != 0) {
-			LOG.error("Exit status: " + cmdReturnValue);
+			LOG.error("zfs exit status: " + cmdReturnValue);
 			LOG.error(outputBuffer.toString());
 			return null;
 		}

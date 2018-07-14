@@ -63,7 +63,7 @@ public class StorageControllerConfiguration {
 									JsonNode pName = cfgNode.get("provider");
 									String s = pName.asText();
 									if (s.equals("zfs")) {
-										provider.setManagementProvider(new NFS(cfgNode));
+										provider.setManagementProvider(new NFS(provider, cfgNode));
 									}
 									break;
 							}
