@@ -519,13 +519,9 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 
 		V1PersistentVolume pv = new V1PersistentVolume();
 		V1PersistentVolumeSpec spec = new V1PersistentVolumeSpec();
-		List<String> accessModes = new ArrayList<String>();
 		Map<String, Quantity> capacity = new HashMap<String, Quantity>();
 		V1NFSVolumeSource nfsSource = new V1NFSVolumeSource();
 		V1ObjectMeta metadata = new V1ObjectMeta();
-
-
-		accessModes.add("ReadWriteOnce");
 
 		capacity.put("storage", new Quantity(pvc.getRequestedStorage(), BINARY_SI));
 
@@ -533,7 +529,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 		nfsSource.setPath(persistentVolumeProperties.getNfsExportPath());
 		nfsSource.setReadOnly(persistentVolumeProperties.isReadOnly());
 
-		spec.setAccessModes(accessModes);
+		spec.setAccessModes(pvc.accessModes);
 		// Delete, Retain, Recycle
 		spec.setPersistentVolumeReclaimPolicy("Retain");
 		spec.setCapacity(capacity);
