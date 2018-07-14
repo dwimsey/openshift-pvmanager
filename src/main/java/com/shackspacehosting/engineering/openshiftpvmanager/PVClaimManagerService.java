@@ -467,16 +467,16 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 				removePV(client, pvcn);
 				break;
 			case "Bound":
-				LOG.trace("Bound PV (" + pvcn.getName() + ") state: " + pvcn.getUpdateType());
+				LOG.trace("Bound PV (" + pvcn.getName() + "): " + pvcn.getUpdateType());
 				break;
 			case "Available":
-				LOG.info("Available PV (" + pvcn.getName() + ") state: " + pvcn.getUpdateType());
+				LOG.info("Available PV (" + pvcn.getName() + "): " + pvcn.getUpdateType());
 				break;
 			case "Pending":
-				LOG.debug("Pending PV (" + pvcn.getName() + ") state: " + pvcn.getUpdateType());
+				LOG.debug("Pending PV (" + pvcn.getName() + "): " + pvcn.getUpdateType());
 				break;
 			default:
-				LOG.error("Unexpected PV (" + ":" + pvcn.getName() + ") state: " + pvcn.getUpdateType());
+				LOG.error("Unexpected PV state (" + ":" + pvcn.getName() + "): " + pvcn.getUpdateType());
 				break;
 		}
 	}
