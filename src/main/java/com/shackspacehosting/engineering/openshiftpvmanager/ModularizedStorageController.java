@@ -10,6 +10,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
 
+import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_STORAGE_CLASS;
+
 public class ModularizedStorageController implements IStorageController {
 	private static final Logger LOG = LoggerFactory.getLogger(ModularizedStorageController.class);
 
@@ -33,8 +35,8 @@ public class ModularizedStorageController implements IStorageController {
 	@Override
 	public NfsVolumeProperties createPersistentVolume(Map<String, String> annotations, UUID uuid, long sizeInBytes) throws Exception {
 		String requestedStorageClass = storageControllerConfiguration.getDefaultStorageClass();
-		if(annotations != null && annotations.containsKey("storage-class")) {
-			requestedStorageClass = annotations.get("storage-class");
+		if(annotations != null && annotations.containsKey(ANNOTATION_STORAGE_CLASS)) {
+			requestedStorageClass = annotations.get(ANNOTATION_STORAGE_CLASS);
 		}
 
 		NfsVolumeProperties props = null;
@@ -60,8 +62,8 @@ public class ModularizedStorageController implements IStorageController {
 	@Override
 	public void removePersistentVolume(Map<String, String> annotations) throws Exception {
 		String requestedStorageClass = storageControllerConfiguration.getDefaultStorageClass();
-		if(annotations != null && annotations.containsKey("storage-class")) {
-			requestedStorageClass = annotations.get("storage-class");
+		if(annotations != null && annotations.containsKey(ANNOTATION_STORAGE_CLASS)) {
+			requestedStorageClass = annotations.get(ANNOTATION_STORAGE_CLASS);
 		}
 
 		NfsVolumeProperties props = null;

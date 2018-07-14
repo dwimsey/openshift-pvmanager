@@ -355,8 +355,8 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 					case "pending":
 						try {
 							Map<String, String> annotations = pvcChangeNotification.getAnnotations();
-							if (annotations != null && annotations.containsKey("volume.beta.kubernetes.io/storage-provisioner")) {
-								if (annotations.get("volume.beta.kubernetes.io/storage-provisioner").equals("wimsey.us/pvmanager")) {
+							if (annotations != null && annotations.containsKey(ANNOTATION_KUBERNETES_STORAGE_PROVISIONER)) {
+								if (annotations.get(ANNOTATION_KUBERNETES_STORAGE_PROVISIONER).equals(ANNOTATION_STORAGE_PROVISIONER_NAME)) {
 									createPVForPVC(client, pvcChangeNotification);
 								}
 							} else {
