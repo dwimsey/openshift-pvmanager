@@ -277,7 +277,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 								Map<String, String> annotations = metadata.getAnnotations();
 
 								if(annotations != null && annotations.containsKey(ANNOTATION_MANAGED_BY)) {
-									if (annotations.get(ANNOTATION_MANAGED_BY).equals("pvmanager")) {
+									if (annotations.get(ANNOTATION_MANAGED_BY).equals(ANNOTATION_STORAGE_PROVISIONER_NAME)) {
 									} else {
 										continue;
 									}
@@ -454,7 +454,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 			return;
 		} else {
 			String annotationValue = annotations.getOrDefault(ANNOTATION_MANAGED_BY, null);
-			if ("pvmanager".equals(annotationValue) == false) {
+			if (ANNOTATION_STORAGE_PROVISIONER_NAME.equals(annotationValue) == false) {
 				// This application is not the owner of this pv, ignore this notification
 				LOG.trace("PV Notification is not for this controller: " + ANNOTATION_MANAGED_BY + ": {}", annotationValue);
 				return;
@@ -497,7 +497,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 		UUID uuid = UUID.randomUUID();
 
 		Map<String, String> annotations = ObjectNameMapper.mapKubernetesToPVManagerPVCAnnotations(pvc.getNamespace(), pvc.getVolumeName(), pvc.getAnnotations());
-		annotations.put(ANNOTATION_MANAGED_BY, "pvmanager");
+		annotations.put(ANNOTATION_MANAGED_BY, ANNOTATION_STORAGE_PROVISIONER_NAME);
 		annotations.put(ANNOTATION_VOLUME_UUID, uuid.toString());
 
 		NfsVolumeProperties persistentVolumeProperties = null;
