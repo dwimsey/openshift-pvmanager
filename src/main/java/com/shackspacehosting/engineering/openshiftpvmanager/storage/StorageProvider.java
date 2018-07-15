@@ -6,6 +6,8 @@ import com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.Nf
 import java.util.Map;
 import java.util.UUID;
 
+import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.*;
+
 public class StorageProvider {
 	String storageClass;
 	public String getStorageClass() {
@@ -44,11 +46,15 @@ public class StorageProvider {
 		managementProvider.removePersistentVolume(annotations);
 	}
 
-	String pvNameFormat;
-	public void setpvNameFormat(String namePrefix) {
-		this.pvNameFormat = namePrefix;
+	public String getDefaultPvNameFormat() {
+		return getStorageClass() + "-{" + ANNOTATION_PVMANAGER_PVCNAMESPACE + "}-{" + ANNOTATION_PVMANAGER_PVCNAME + "}-{" + ANNOTATION_PVMANAGER_PVTAG + "}";
 	}
-	public String getpvNameFormat() {
-		return pvNameFormat;
+
+	String pvNamePrefix = null;
+ 	public void setPvNameFormat(String namePrefix) {
+		this.pvNamePrefix = namePrefix;
+	}
+	public String getPvNameFormat() {
+		return pvNamePrefix;
 	}
 }

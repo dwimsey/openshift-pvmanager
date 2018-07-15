@@ -142,37 +142,94 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 
 	public NFS(StorageProvider provider, JsonNode cfgNode) throws IOException {
 		this.provider=provider;
+		boolean hasError = false;
 
 		JsonNode nfsCfgNode = cfgNode.get(CONFIG_NFS);
 		if (nfsCfgNode != null) {
-			this.nfsHostname = nfsCfgNode.get(CONFIG_NFS_HOSTNAME).asText();
-			this.nfsRootPath = nfsCfgNode.get(CONFIG_NFS_EXPORTROOT).asText();
+			if(nfsCfgNode.has(CONFIG_NFS_HOSTNAME)) {
+				this.nfsHostname = nfsCfgNode.get(CONFIG_NFS_HOSTNAME).asText();
+			} else {
+				LOG.error("No NFS hostname configured");
+				hasError = true;
+			}
+
+			if(nfsCfgNode.has(CONFIG_NFS_EXPORTROOT)) {
+				this.nfsRootPath = nfsCfgNode.get(CONFIG_NFS_EXPORTROOT).asText();
+			} else {
+				LOG.error("No NFS export root configured");
+				hasError = true;
+			}
 		}
 
 		JsonNode sshCfgNode = cfgNode.get(CONFIG_SSH);
 		if(sshCfgNode != null) {
-			this.sshHostname = sshCfgNode.get(CONFIG_SSH_HOSTNAME).asText();
-			this.sshPort = sshCfgNode.get(CONFIG_SSH_PORT).asInt(CONFIG_SSH_PORT_DEFAULT);
-			this.sshUsername = sshCfgNode.get(CONFIG_SSH_IDENTITY).asText();
+			if(sshCfgNode.has(CONFIG_SSH_HOSTNAME)) {
+				this.sshHostname = sshCfgNode.get(CONFIG_SSH_HOSTNAME).asText();
+			} else {
+				LOG.error("No SSH hostname configured");
+				hasError = true;
+			}
+
+			if(sshCfgNode.has(CONFIG_SSH_PORT)) {
+				this.sshPort = sshCfgNode.get(CONFIG_SSH_PORT).asInt(CONFIG_SSH_PORT_DEFAULT);
+			} else {
+				LOG.trace("Using default SSH port: " + CONFIG_SSH_PORT_DEFAULT);
+				this.sshPort = CONFIG_SSH_PORT_DEFAULT;
+			}
+
+			if(sshCfgNode.has(CONFIG_SSH_IDENTITY)) {
+				this.sshUsername = sshCfgNode.get(CONFIG_SSH_IDENTITY).asText();
+			} else {
+				LOG.error("No SSH identity configured");
+				hasError = true;
+			}
+
 			if(sshCfgNode.has(CONFIG_SSH_PRIVATEKEY_FILE)) {
 				this.sshPrivateKey = sshCfgNode.get(CONFIG_SSH_PRIVATEKEY_FILE).asText();
 				//this.sshPrivateKey = new String(Files.readAllBytes(Paths.get(sshCfgNode.get(CONFIG_SSH_PRIVATEKEY_FILE).asText())));
 			} else if(sshCfgNode.has(CONFIG_SSH_PRIVATEKEY)) {
 				this.sshPrivateKey = sshCfgNode.get(CONFIG_SSH_PRIVATEKEY).asText();
 			}
-			this.sshToken = sshCfgNode.get(CONFIG_SSH_TOKEN).asText();
-		}
-		JsonNode zfsCfgNode = cfgNode.get(CONFIG_ZFS);
-		if(zfsCfgNode != null) {
-			this.zfsRootPath = zfsCfgNode.get(CONFIG_ZFS_ROOTPATH).asText();
-			this.becomeRoot = zfsCfgNode.get(CONFIG_ZFS_BECOMEROOT).asBoolean(false);
-
-			this.quotaMode = QuotaMode.valueOf(zfsCfgNode.get(CONFIG_ZFS_QUOTAMODE).asText(CONFIG_ZFS_QUOTAMODE_DEFAULT).toUpperCase());
-			if(zfsCfgNode.has(CONFIG_ZFS_UNIXMODE)) {
-				this.unixMode = Long.valueOf(zfsCfgNode.get(CONFIG_ZFS_UNIXMODE).asText());
+			if(sshCfgNode.has(CONFIG_SSH_TOKEN)) {
+				this.sshToken = sshCfgNode.get(CONFIG_SSH_TOKEN).asText();
+			} else {
+				LOG.info("No SSH token configured, using clear text keys and password-less logins is highly discouraged.");
 			}
 		}
 
+		JsonNode zfsCfgNode = cfgNode.get(CONFIG_ZFS);
+		if(zfsCfgNode != null) {
+			if(zfsCfgNode.has(CONFIG_ZFS_ROOTPATH)) {
+				this.zfsRootPath = zfsCfgNode.get(CONFIG_ZFS_ROOTPATH).asText();
+			} else {
+				LOG.error("No ZFS root path configured.");
+				hasError = true;
+			}
+
+			if(zfsCfgNode.has(CONFIG_ZFS_BECOMEROOT)) {
+				this.becomeRoot = zfsCfgNode.get(CONFIG_ZFS_BECOMEROOT).asBoolean(false);
+			} else {
+				this.becomeRoot = false;
+				LOG.warn("No ZFS become root configured, assuming false.");
+			}
+
+			if(zfsCfgNode.has(CONFIG_ZFS_QUOTAMODE)) {
+				this.quotaMode = QuotaMode.valueOf(zfsCfgNode.get(CONFIG_ZFS_QUOTAMODE).asText(CONFIG_ZFS_QUOTAMODE_DEFAULT).toUpperCase());
+			} else {
+				this.quotaMode = QuotaMode.valueOf(CONFIG_ZFS_QUOTAMODE_DEFAULT);
+				LOG.info("No ZFS quota mode configured, using default: " + CONFIG_ZFS_QUOTAMODE_DEFAULT);
+			}
+
+			if(zfsCfgNode.has(CONFIG_ZFS_UNIXMODE)) {
+				this.unixMode = Long.valueOf(zfsCfgNode.get(CONFIG_ZFS_UNIXMODE).asText());
+			} else {
+				LOG.warn("No ZFS unix mode configured.");
+			}
+		}
+
+		if(hasError) {
+			throw new IllegalArgumentException("NFS configuration has one or more unrecoverable errors.");
+		}
 		this.init();
 	}
 
@@ -314,10 +371,7 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 
 		// Add user attribute pointing to the name of the PV that was created for it
 		extraArgs = extraArgs + " -o " + ANNOTATION_PVMANAGER_PVREF + "=" +
-				provider.getpvNameFormat() +
-				annotations.get(ANNOTATION_PVMANAGER_PVCNAMESPACE) + "-" +
-				annotations.get(ANNOTATION_PVMANAGER_PVCNAME) + "-" +
-				uuid.toString().substring(0,7);
+				annotations.get(ANNOTATION_PVMANAGER_PVREF);
 
 		String zfsCloneSourceVolumePath = annotations.get(ANNOTATION_CLONEFROM);
 //		if(zfsCloneSourceVolumePath != null) {

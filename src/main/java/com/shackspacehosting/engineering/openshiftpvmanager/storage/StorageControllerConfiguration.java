@@ -11,10 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class StorageControllerConfiguration {
@@ -26,7 +23,7 @@ public class StorageControllerConfiguration {
 		File configFile = new File(configuration);
 		JsonNode node = mapper.readTree(configFile);
 
-		List<StorageProvider> providers = new ArrayList<StorageProvider>(1);
+		Map<String, StorageProvider> providers = new HashMap<String, StorageProvider>(1);
 
 		JsonNode jsonNode;
 
@@ -45,32 +42,43 @@ public class StorageControllerConfiguration {
 				JsonNode cfgNode = storageProviderConfigurationNode.get("configuration");
 
 				StorageProvider provider = new StorageProvider();
-				for (Iterator<Map.Entry<String, JsonNode>> storageProviderConfigurationField = storageProviderConfigurationNode.fields(); storageProviderConfigurationField.hasNext(); ) {
-					Map.Entry<String, JsonNode> storageProviderConfigurationFieldNode = storageProviderConfigurationField.next();
-					String key = storageProviderConfigurationFieldNode.getKey();
-
-					switch(key) {
-						case "storageClass":
-							provider.setStorageClass(storageProviderConfigurationFieldNode.getValue().asText());
-							break;
-						case "pvNameFormat":
-							provider.setpvNameFormat(storageProviderConfigurationFieldNode.getValue().asText());
-							break;
-						case "managementProvider":
-							String providerName = storageProviderConfigurationFieldNode.getValue().asText();
-							switch (providerName.toUpperCase()) {
-								case "NFS":
-									JsonNode pName = cfgNode.get("provider");
-									String s = pName.asText();
-									if (s.equals("zfs")) {
-										provider.setManagementProvider(new NFS(provider, cfgNode));
-									}
-									break;
-							}
-							break;
-					}
+				if(!storageProviderConfigurationNode.has("storageClass")) {
+					LOG.error("Storage provider configuration does not contain as storageClass");
+					continue;
 				}
-				providers.add(provider);
+				String storageClass = storageProviderConfigurationNode.get("storageClass").asText();
+				if(storageClass.isEmpty()) {
+					LOG.error("Storage provider configuration storageClass is empty");
+					continue;
+				}
+				provider.setStorageClass(storageClass);
+
+
+				String pvNameFormat;
+				if(storageProviderConfigurationNode.has("pvNameFormat")) {
+					pvNameFormat = storageProviderConfigurationNode.get("pvNameFormat").asText();
+				} else {
+					pvNameFormat = provider.getDefaultPvNameFormat();
+				}
+				provider.setPvNameFormat(pvNameFormat);
+
+				String providerName = storageProviderConfigurationNode.get("managementProvider").asText();
+				switch (providerName.toUpperCase()) {
+					case "NFS":
+						JsonNode pName = cfgNode.get("provider");
+						String s = pName.asText();
+						if (s.equals("zfs")) {
+							NFS nfs;
+							try {
+								nfs = new NFS(provider, cfgNode);
+							} catch (IllegalArgumentException iae){
+								throw new RuntimeException("NFS configuration for storage class '" + storageClass + "' has one or more unrecoverable errors.", iae);
+							}
+							provider.setManagementProvider(nfs);
+						}
+						break;
+				}
+				providers.put(provider.getStorageClass(), provider);
 			}
 		} else {
 			this.defaultStorageClass = "";
@@ -78,13 +86,13 @@ public class StorageControllerConfiguration {
 
 		this.setStorageProviders(providers);
 	}
-	private List<StorageProvider> storageProviders = new ArrayList<StorageProvider>();
+	private Map<String, StorageProvider> storageProviders = new HashMap<String, StorageProvider>();
 
-	public List<StorageProvider> getStorageProviders() {
+	public Map<String, StorageProvider> getStorageProviders() {
 		return storageProviders;
 	}
 
-	public void setStorageProviders(List<StorageProvider> storageProviders) {
+	public void setStorageProviders(Map<String, StorageProvider> storageProviders) {
 		this.storageProviders = storageProviders;
 	}
 

@@ -39,9 +39,9 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 	final public static String ANNOTATION_KUBERNETES_STORAGE_CLASS = "volume.beta.kubernetes.io/storage-class";
 
 	final public static String ANNOTATION_MANAGED_BY = "managed-by";
-	final public static String ANNOTATION_STORAGE_PROVISIONER_NAME = "wimsey.us/pvmanager";
+	final public static String ANNOTATION_STORAGE_PROVISIONER_NAME = "pvmanager.wimsey.us";
 
-	final public static String ANNOTATION_BASE = "pvmanager.wimsey.us/";
+	final public static String ANNOTATION_BASE = ANNOTATION_STORAGE_PROVISIONER_NAME + "/";
 	final public static String ANNOTATION_VOLUME_UUID = ANNOTATION_BASE + "volume-uuid";
 	final public static String ANNOTATION_PROVIDER_TYPE = ANNOTATION_BASE + "managed-provider";
 	final public static String ANNOTATION_CLONEFROM = ANNOTATION_BASE + "clone-from";
@@ -61,7 +61,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 
 	final public static String ANNOTATION_PVMANAGER_PVCNAMESPACE = ANNOTATION_BASE + "pvc-namespace";
 	final public static String ANNOTATION_PVMANAGER_PVCNAME = ANNOTATION_BASE + "pvc-name";
-
+	final public static String ANNOTATION_PVMANAGER_PVTAG = "PVMANAGER-PV-TAG";
 
 	@Value("${kubernetes.service.scheme:https}")
 	private String kubernetesServiceScheme;
@@ -541,7 +541,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 		claimRef.setUid(pvc.getClaimUid());
 		spec.setClaimRef(claimRef);
 
-		metadata.setName(persistentVolumeProperties.getNamePrefix() + pvc.getNamespace() + "-" + pvc.getVolumeName() + "-" + uuid.toString().substring(0,7));
+		metadata.setName(persistentVolumeProperties.getPVName());
 		metadata.setAnnotations(annotations);
 
 		pv.setSpec(spec);

@@ -7,10 +7,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_PVMANAGER_PVTAG;
 import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_STORAGE_CLASS;
+import static com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.NFS.ANNOTATION_PVMANAGER_PVREF;
 
 public class ModularizedStorageController implements IStorageController {
 	private static final Logger LOG = LoggerFactory.getLogger(ModularizedStorageController.class);
@@ -32,26 +37,52 @@ public class ModularizedStorageController implements IStorageController {
 		return createPersistentVolume(null, uuid, sizeInBytes);
 	}
 
+	Pattern pattern = Pattern.compile("\\{(.+?)\\}");
+	private String replaceTokensInString(Map<String,String> replacements, String text) {
+		Matcher matcher = pattern.matcher(text);
+
+		StringBuilder builder = new StringBuilder();
+		int i = 0;
+		while (matcher.find()) {
+			String replacement = replacements.get(matcher.group(1));
+			builder.append(text.substring(i, matcher.start()));
+			if (replacement == null)
+				builder.append(matcher.group(0));
+			else
+				builder.append(replacement);
+			i = matcher.end();
+		}
+		builder.append(text.substring(i, text.length()));
+		return builder.toString();
+	}
+
 	@Override
 	public NfsVolumeProperties createPersistentVolume(Map<String, String> annotations, UUID uuid, long sizeInBytes) throws Exception {
 		String requestedStorageClass = storageControllerConfiguration.getDefaultStorageClass();
-		if(annotations != null && annotations.containsKey(ANNOTATION_STORAGE_CLASS)) {
+		if(annotations != null) {
+			if(annotations.containsKey(ANNOTATION_STORAGE_CLASS)) {
 			requestedStorageClass = annotations.get(ANNOTATION_STORAGE_CLASS);
 		}
+		} else {
+			annotations = new HashMap<>();
+		}
 
-		NfsVolumeProperties props = null;
-		for(StorageProvider provider : storageControllerConfiguration.getStorageProviders()) {
-			LOG.trace("Testing storage provider: " + provider.getStorageClass());
-			if(requestedStorageClass.compareTo(provider.getStorageClass()) == 0) {
-				// This provider serves the storage class requested, attempt to create the volume
-				LOG.debug("Trying provider: " + provider.getClass().getName());
-				props = provider.createPersistentVolume(annotations, uuid, sizeInBytes);
+
+		final StorageProvider provider = storageControllerConfiguration.getStorageProviders().get(requestedStorageClass);
+		try {
+			annotations.put(ANNOTATION_PVMANAGER_PVTAG, uuid.toString().substring(0,7));
+			String pvName = replaceTokensInString(annotations, provider.getPvNameFormat());
+			annotations.put(ANNOTATION_PVMANAGER_PVREF, pvName);
+			annotations.remove(ANNOTATION_PVMANAGER_PVTAG);
+
+			final NfsVolumeProperties props = provider.createPersistentVolume(annotations, uuid, sizeInBytes);
 				if(props != null) {
-					props.setNamePrefix(provider.getpvNameFormat());
+				props.setPVName(pvName);
 					// The provider handled the request, no further processing is needed.
 					return props;
 				}
-			}
+		}finally {
+			annotations.remove(ANNOTATION_PVMANAGER_PVREF);
 		}
 
 		LOG.error("Could not find a storage provider to service the request: " + requestedStorageClass);
@@ -67,17 +98,10 @@ public class ModularizedStorageController implements IStorageController {
 		}
 
 		NfsVolumeProperties props = null;
-		for(StorageProvider provider : storageControllerConfiguration.getStorageProviders()) {
-			LOG.trace("Testing storage provider: " + provider.getStorageClass());
-			if(requestedStorageClass.compareTo(provider.getStorageClass()) == 0) {
-				// This provider serves the storage class requested, attempt to create the volume
-				LOG.debug("Trying provider: " + provider.getClass().getName());
+		StorageProvider provider = storageControllerConfiguration.getStorageProviders().get(requestedStorageClass);
+		if(provider == null) {
+			LOG.error("Could not find a storage provider to service the cleanup request: " + requestedStorageClass);
 				provider.removePersistentVolume(annotations);
-				return;
-			}
 		}
-
-		LOG.error("Could not find a storage provider to service the request: " + requestedStorageClass);
-		// No providers were able to successfully provide a volume for this request
 	}
 }

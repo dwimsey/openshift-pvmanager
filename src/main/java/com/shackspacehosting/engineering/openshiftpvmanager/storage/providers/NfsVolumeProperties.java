@@ -7,7 +7,7 @@ public class NfsVolumeProperties {
 		this.nfsHostname = nfs.getServer();
 		this.nfsExportPath = nfs.getPath();
 		this.readOnly = ((nfs.isReadOnly() != null) ? nfs.isReadOnly() : false);
-		this.namePrefix = null;
+		this.pvName = null;
 	}
 
 	public String getNfsHostname() {
@@ -25,24 +25,24 @@ public class NfsVolumeProperties {
 	final String nfsHostname;
 	final String nfsExportPath;
 	final boolean readOnly;
-	String namePrefix;
+	String pvName;
 
 	public NfsVolumeProperties(String nfsHostname, String s, boolean readOnly, String namePrefix) {
 		this.nfsHostname = nfsHostname;
 		this.nfsExportPath = s;
 		this.readOnly = readOnly;
-		this.namePrefix = namePrefix;
+		this.pvName = namePrefix;
 	}
 
-	public String getNamePrefix() {
-		if(namePrefix == null) {
+	public String getPVName() {
+		if(pvName == null) {
 			return "";
 		}
-		return namePrefix;
+		return pvName;
 	}
 
-	public void setNamePrefix(String namePrefix) {
-		this.namePrefix = namePrefix;
+	public void setPVName(String namePrefix) {
+		this.pvName = namePrefix;
 	}
 
 }
