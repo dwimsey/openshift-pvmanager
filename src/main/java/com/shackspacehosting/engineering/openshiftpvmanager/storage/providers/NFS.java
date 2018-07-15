@@ -42,9 +42,19 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 	final public static String CONFIG_ZFS_QUOTAMODE = "quotaMode";
 	final public static String CONFIG_ZFS_QUOTAMODE_DEFAULT = "QUOTA";
 
+	final private StorageProvider provider;
+
 	private SSHExecWrapper sshWrapper;
 
 	private boolean becomeRoot;
+	private QuotaMode quotaMode;
+
+	public enum QuotaMode {
+		IGNORE,
+		QUOTA,
+		RESERVE,
+		BOTH;
+	}
 
 
 	private String nfsHostname;
@@ -130,7 +140,6 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 		this.zfsRootPath = zfsRootPath;
 	}
 
-	final private StorageProvider provider;
 	public NFS(StorageProvider provider, JsonNode cfgNode) throws IOException {
 		this.provider=provider;
 
@@ -168,10 +177,6 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 	public void init() {
 		sshWrapper = new SSHExecWrapper(sshHostname, sshPort, sshUsername, sshPrivateKey, sshToken);
 	}
-	final public static String ANNOTATION_VOLUME_HOST = ANNOTATION_BASE + "nfs-host";
-	final public static String ANNOTATION_VOLUME_PATH = ANNOTATION_BASE + "nfs-path";
-	final public static String ANNOTATION_VOLUME_EXPORT = ANNOTATION_BASE + "nfs-export";
-	final public static String ANNOTATION_PROVIDER_TYPE_NAME = "nfs";
 
 	public NfsVolumeProperties createPersistentVolume(Map<String, String> annotations, UUID uuid, long sizeInBytes) throws Exception {
 		String command;
@@ -187,6 +192,20 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 
 		String extraArgs = "";
 
+
+		switch(quotaMode) {
+			case IGNORE:
+				break;
+			case QUOTA:
+				extraArgs = " -o quota=" + sizeInBytes;
+				break;
+			case RESERVE:
+				extraArgs = " -o reservation=" + sizeInBytes;
+				break;
+			case BOTH:
+				extraArgs = " -o quota=" + sizeInBytes + " -o reservation=" + sizeInBytes;
+				break;
+		}
 
 		int maxBlockSize = 1048576; // If
 		maxBlockSize = 131072;
@@ -302,11 +321,8 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 //		if(zfsCloneSourceVolumePath != null) {
 //			command = (becomeRoot ? "sudo " : "") + "zfs clone -o quota=" + sizeInBytes + extraArgs + " " + zfsCloneSourceVolumePath + " " + zfsVolumePath;
 //		} else {
-			command = (becomeRoot ? "sudo " : "") + "zfs create -o quota=" + sizeInBytes + extraArgs + " " + zfsVolumePath;
+			command = (becomeRoot ? "sudo " : "") + "zfs create " + extraArgs + " " + zfsVolumePath;
 //		}
-
-
-
 
 		StringBuilder outputBuffer = new StringBuilder();
 
