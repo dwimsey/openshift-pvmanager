@@ -47,7 +47,7 @@ public class ModularizedStorageController implements IStorageController {
 				LOG.debug("Trying provider: " + provider.getClass().getName());
 				props = provider.createPersistentVolume(annotations, uuid, sizeInBytes);
 				if(props != null) {
-					props.setNamePrefix(provider.getPvNamePrefix());
+					props.setNamePrefix(provider.getpvNameFormat());
 					// The provider handled the request, no further processing is needed.
 					return props;
 				}

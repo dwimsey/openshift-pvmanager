@@ -16,7 +16,31 @@ import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManage
 public class NFS implements IStorageManagementProvider, AutoCloseable {
 	private static final Logger LOG = LoggerFactory.getLogger(NFS.class);
 
+	final public static String ANNOTATION_VOLUME_HOST = ANNOTATION_BASE + "nfs-host";
+	final public static String ANNOTATION_VOLUME_PATH = ANNOTATION_BASE + "nfs-path";
+	final public static String ANNOTATION_VOLUME_EXPORT = ANNOTATION_BASE + "nfs-export";
+	final public static String ANNOTATION_PROVIDER_TYPE_NAME = "nfs";
+
 	final public static String ANNOTATION_PVMANAGER_PVREF = "pvmanager:pvref";
+
+	final public static String CONFIG_NFS = "nfs";
+	final public static String CONFIG_NFS_HOSTNAME = "hostname";
+	final public static String CONFIG_NFS_EXPORTROOT = "exportRoot";
+	final public static String CONFIG_SSH = "ssh";
+	final public static String CONFIG_SSH_HOSTNAME = "hostname";
+	final public static String CONFIG_SSH_PORT = "port";
+	final public static int CONFIG_SSH_PORT_DEFAULT = 22;
+	final public static String CONFIG_SSH_IDENTITY = "identity";
+	final public static String CONFIG_SSH_PRIVATEKEY_FILE = "privateKeyFile";
+	final public static String CONFIG_SSH_PRIVATEKEY = "privateKey";
+	final public static String CONFIG_SSH_TOKEN = "token";
+	final public static String CONFIG_ZFS = "zfs";
+	final public static String CONFIG_ZFS_ROOTPATH = "rootPath";
+	final public static String CONFIG_ZFS_BECOMEROOT = "becomeRoot";
+	final public static String CONFIG_ZFS_UNIXMODE = "unixMode";
+	final public static String CONFIG_ZFS_UNIXMODE_DEFAULT = "0775";
+	final public static String CONFIG_ZFS_QUOTAMODE = "quotaMode";
+	final public static String CONFIG_ZFS_QUOTAMODE_DEFAULT = "QUOTA";
 
 	private SSHExecWrapper sshWrapper;
 
@@ -110,29 +134,32 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 	public NFS(StorageProvider provider, JsonNode cfgNode) throws IOException {
 		this.provider=provider;
 
-		JsonNode nfsCfgNode = cfgNode.get("nfs");
+		JsonNode nfsCfgNode = cfgNode.get(CONFIG_NFS);
 		if (nfsCfgNode != null) {
-			this.nfsHostname = nfsCfgNode.get("hostname").asText();
-			this.nfsRootPath = nfsCfgNode.get("exportRoot").asText();
+			this.nfsHostname = nfsCfgNode.get(CONFIG_NFS_HOSTNAME).asText();
+			this.nfsRootPath = nfsCfgNode.get(CONFIG_NFS_EXPORTROOT).asText();
 		}
 
-		JsonNode sshCfgNode = cfgNode.get("ssh");
+		JsonNode sshCfgNode = cfgNode.get(CONFIG_SSH);
 		if(sshCfgNode != null) {
-			this.sshHostname = sshCfgNode.get("hostname").asText();
-			this.sshPort = sshCfgNode.get("port").asInt(23);
-			this.sshUsername = sshCfgNode.get("identity").asText();
-			if(sshCfgNode.has("privateKeyFile")) {
-				this.sshPrivateKey = sshCfgNode.get("privateKeyFile").asText();
-				//this.sshPrivateKey = new String(Files.readAllBytes(Paths.get(sshCfgNode.get("privateKeyFile").asText())));
-			} else if(sshCfgNode.has("privateKey")) {
-				this.sshPrivateKey = sshCfgNode.get("privateKey").asText();
+			this.sshHostname = sshCfgNode.get(CONFIG_SSH_HOSTNAME).asText();
+			this.sshPort = sshCfgNode.get(CONFIG_SSH_PORT).asInt(CONFIG_SSH_PORT_DEFAULT);
+			this.sshUsername = sshCfgNode.get(CONFIG_SSH_IDENTITY).asText();
+			if(sshCfgNode.has(CONFIG_SSH_PRIVATEKEY_FILE)) {
+				this.sshPrivateKey = sshCfgNode.get(CONFIG_SSH_PRIVATEKEY_FILE).asText();
+				//this.sshPrivateKey = new String(Files.readAllBytes(Paths.get(sshCfgNode.get(CONFIG_SSH_PRIVATEKEY_FILE).asText())));
+			} else if(sshCfgNode.has(CONFIG_SSH_PRIVATEKEY)) {
+				this.sshPrivateKey = sshCfgNode.get(CONFIG_SSH_PRIVATEKEY).asText();
 			}
-			this.sshToken = sshCfgNode.get("token").asText();
+			this.sshToken = sshCfgNode.get(CONFIG_SSH_TOKEN).asText();
 		}
-		JsonNode zfsCfgNode = cfgNode.get("zfs");
+		JsonNode zfsCfgNode = cfgNode.get(CONFIG_ZFS);
 		if(zfsCfgNode != null) {
-			this.zfsRootPath = zfsCfgNode.get("rootPath").asText();
-			this.becomeRoot = zfsCfgNode.get("becomeRoot").asBoolean(false);
+			this.zfsRootPath = zfsCfgNode.get(CONFIG_ZFS_ROOTPATH).asText();
+			this.becomeRoot = zfsCfgNode.get(CONFIG_ZFS_BECOMEROOT).asBoolean(false);
+
+			this.quotaMode = QuotaMode.valueOf(zfsCfgNode.get(CONFIG_ZFS_QUOTAMODE).asText(CONFIG_ZFS_QUOTAMODE_DEFAULT).toUpperCase());
+			this.unixMode = Long.valueOf(zfsCfgNode.get(CONFIG_ZFS_UNIXMODE).asText(CONFIG_ZFS_UNIXMODE_DEFAULT));
 		}
 
 		this.init();
@@ -266,7 +293,7 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 
 		// Add user attribute pointing to the name of the PV that was created for it
 		extraArgs = extraArgs + " -o " + ANNOTATION_PVMANAGER_PVREF + "=" +
-				provider.getPvNamePrefix() +
+				provider.getpvNameFormat() +
 				annotations.get(ANNOTATION_PVMANAGER_PVCNAMESPACE) + "-" +
 				annotations.get(ANNOTATION_PVMANAGER_PVCNAME) + "-" +
 				uuid.toString().substring(0,7);

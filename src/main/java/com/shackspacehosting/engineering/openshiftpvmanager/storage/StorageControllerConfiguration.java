@@ -40,24 +40,24 @@ public class StorageControllerConfiguration {
 
 		jsonNode = node.get("storageProviders");
 		if (jsonNode != null) {
-			for (Iterator<JsonNode> itt = jsonNode.elements(); itt.hasNext(); ) {
-				JsonNode tt = itt.next();
-				JsonNode cfgNode = tt.get("configuration");
+			for (Iterator<JsonNode> storageProviderNode = jsonNode.elements(); storageProviderNode.hasNext(); ) {
+				JsonNode storageProviderConfigurationNode = storageProviderNode.next();
+				JsonNode cfgNode = storageProviderConfigurationNode.get("configuration");
 
 				StorageProvider provider = new StorageProvider();
-				for (Iterator<Map.Entry<String, JsonNode>> ittt = tt.fields(); ittt.hasNext(); ) {
-					Map.Entry<String, JsonNode> ttt = ittt.next();
-					String key = ttt.getKey();
+				for (Iterator<Map.Entry<String, JsonNode>> storageProviderConfigurationField = storageProviderConfigurationNode.fields(); storageProviderConfigurationField.hasNext(); ) {
+					Map.Entry<String, JsonNode> storageProviderConfigurationFieldNode = storageProviderConfigurationField.next();
+					String key = storageProviderConfigurationFieldNode.getKey();
 
 					switch(key) {
 						case "storageClass":
-							provider.setStorageClass(ttt.getValue().asText());
+							provider.setStorageClass(storageProviderConfigurationFieldNode.getValue().asText());
 							break;
-						case "pvNamePrefix":
-							provider.setPvNamePrefix(ttt.getValue().asText());
+						case "pvNameFormat":
+							provider.setpvNameFormat(storageProviderConfigurationFieldNode.getValue().asText());
 							break;
 						case "managementProvider":
-							String providerName = ttt.getValue().asText();
+							String providerName = storageProviderConfigurationFieldNode.getValue().asText();
 							switch (providerName.toUpperCase()) {
 								case "NFS":
 									JsonNode pName = cfgNode.get("provider");

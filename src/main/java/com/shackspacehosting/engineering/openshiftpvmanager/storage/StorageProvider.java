@@ -44,11 +44,11 @@ public class StorageProvider {
 		managementProvider.removePersistentVolume(annotations);
 	}
 
-	String pvNamePrefix;
-	public void setPvNamePrefix(String namePrefix) {
-		this.pvNamePrefix = namePrefix;
+	String pvNameFormat;
+	public void setpvNameFormat(String namePrefix) {
+		this.pvNameFormat = namePrefix;
 	}
-	public String getPvNamePrefix() {
-		return pvNamePrefix;
+	public String getpvNameFormat() {
+		return pvNameFormat;
 	}
 }
