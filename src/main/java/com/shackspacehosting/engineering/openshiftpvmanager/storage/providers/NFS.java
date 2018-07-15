@@ -38,7 +38,6 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 	final public static String CONFIG_ZFS_ROOTPATH = "rootPath";
 	final public static String CONFIG_ZFS_BECOMEROOT = "becomeRoot";
 	final public static String CONFIG_ZFS_UNIXMODE = "unixMode";
-	final public static String CONFIG_ZFS_UNIXMODE_DEFAULT = "0775";
 	final public static String CONFIG_ZFS_QUOTAMODE = "quotaMode";
 	final public static String CONFIG_ZFS_QUOTAMODE_DEFAULT = "QUOTA";
 
@@ -48,6 +47,7 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 
 	private boolean becomeRoot;
 	private QuotaMode quotaMode;
+	private Long unixMode = null;
 
 	public enum QuotaMode {
 		IGNORE,
@@ -168,7 +168,9 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 			this.becomeRoot = zfsCfgNode.get(CONFIG_ZFS_BECOMEROOT).asBoolean(false);
 
 			this.quotaMode = QuotaMode.valueOf(zfsCfgNode.get(CONFIG_ZFS_QUOTAMODE).asText(CONFIG_ZFS_QUOTAMODE_DEFAULT).toUpperCase());
-			this.unixMode = Long.valueOf(zfsCfgNode.get(CONFIG_ZFS_UNIXMODE).asText(CONFIG_ZFS_UNIXMODE_DEFAULT));
+			if(zfsCfgNode.has(CONFIG_ZFS_UNIXMODE)) {
+				this.unixMode = Long.valueOf(zfsCfgNode.get(CONFIG_ZFS_UNIXMODE).asText());
+			}
 		}
 
 		this.init();
@@ -332,6 +334,18 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 			LOG.error(outputBuffer.toString());
 			return null;
 		}
+
+		if(unixMode != null) {
+			command = String.format("%schmod %04d %s", (becomeRoot ? "sudo " : ""), unixMode, exportPath);
+			outputBuffer = new StringBuilder();
+			cmdReturnValue = sshWrapper.exec(command, outputBuffer);
+			if (cmdReturnValue != 0) {
+				LOG.error("chmod exit status: " + cmdReturnValue);
+				LOG.error(outputBuffer.toString());
+				return null;
+			}
+		}
+
 		// @TODO commented
 		return new NfsVolumeProperties(nfsHostname, exportPath, false, null);
 	}
