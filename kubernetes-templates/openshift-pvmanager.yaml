@@ -29,7 +29,8 @@ spec:
         deploymentconfig: pvmanager
     spec:
       containers:
-        - image: docker-registry.default.svc:5000/${NAMESPACE}/pvmanager:release
+        #- image: docker-registry.default.svc:5000/${NAMESPACE}/pvmanager:release
+        - image: dwimsey/pvmanager:release
           imagePullPolicy: IfNotPresent
           name: pvmanager
           ports:
