@@ -5,7 +5,7 @@
 
 	<groupId>com.shackspacehosting</groupId>
 	<artifactId>openshift-pvmanager</artifactId>
-	<version>1.3.1</version>
+	<version>1.3.2</version>
 	<packaging>jar</packaging>
 
 	<name>openshift-pvmanager</name>
@@ -28,7 +28,7 @@
 		<docker.push.versiontag.skip>true</docker.push.versiontag.skip>
 		<docker.registry.host>docker.io</docker.registry.host>
 		<docker.registry.namespace>dwimsey</docker.registry.namespace>
-		<docker.latest.tag>snapshot</docker.latest.tag>
+		<docker.latest.tag>latest</docker.latest.tag>
 		<docker.imagename>pvmanager</docker.imagename>
 
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -43,6 +43,12 @@
 				<docker.image.skip>false</docker.image.skip>
 				<docker.push.skip>false</docker.push.skip>
 				<docker.push.versiontag.skip>false</docker.push.versiontag.skip>
+			</properties>
+		</profile>
+		<profile>
+			<id>release</id>
+			<properties>
+				<docker.latest.tag>release</docker.latest.tag>
 			</properties>
 		</profile>
 	</profiles>

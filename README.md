@@ -47,7 +47,7 @@ PVMAN_PSWD=someRandomPass4Me!
 ssh ${NFSHOST} sudo pw user add ${NFSUSER}
 
 # Create ssh key for 
-ssh-keygen -f pvmanager_id_rsa
+ssh-keygen -f pvmanager_id_rsa -N "${PVMAN_PSWD}"
 
 # Create .ssh directory for pvmanager account
 ssh ${NFSHOST} sudo mkdir -p \~${NFSUSER}/.ssh

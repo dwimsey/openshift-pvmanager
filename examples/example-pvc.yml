@@ -1,0 +1,21 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+#    pvmanager.wimsey.us/blocksize: "1024"
+#    pvmanager.wimsey.us/checksum: "off"
+#    pvmanager.wimsey.us/compression: "gzip-9"
+#    pvmanager.wimsey.us/atime: "off"
+#    pvmanager.wimsey.us/exec: "off"
+#    pvmanager.wimsey.us/logbias: "throughput"
+#    pvmanager.wimsey.us/snapdir: "hidden"
+#    pvmanager.wimsey.us/sync: "off"
+#    pvmanager.wimsey.us/casesensitive: "insensitive"
+  name: example-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
