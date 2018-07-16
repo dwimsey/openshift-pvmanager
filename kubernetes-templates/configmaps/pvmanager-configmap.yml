@@ -1,0 +1,75 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pvmanager-config
+data:
+  storage.yml: |
+    ---
+    # Default storage class to use for provisioning if no storage class is specified by a PVC
+    defaultStorageClass: basic
+
+    # List of storage providers that can be used to fulfill PVC requests.  If multiple are provided for a specific storage
+    # provider, they will be tried in the order provided until one returns a new volume to use.  This can be used to provide primative round robin support
+    storageProviders:
+
+      # This storage provider is selected when the pvc annotation 'volume.beta.kubernetes.io/storage-class' matches the text of storageClass
+      - storageClass: basic
+
+        # Use the NFS mount protocol provider
+        managementProvider: NFS
+
+        # Format of name used for PV when it is created, default value (if blank/missing) is: {storage-class}-{pvmanager.wimsey.us/pvc-namespace}-{pvmanager.wimsey.us/pvc-name}-{PVMANAGER-PV-TAG}
+        # pvNameFormat: basic-{pvmanager.wimsey.us/pvc-namespace}-{pvmanager.wimsey.us/pvc-name}-{PVMANAGER-PV-TAG}
+        # Mangement provider configuration
+        configuration:
+          # For NFS provider, ZFS specifies that the host is using ZFS to create new mount points
+          provider: zfs
+
+          # For NFS provider, provide SSH credentials for connecting to the management server used to provision the new mount point
+          ssh:
+            # Hostname of management host
+            hostname: {{ pvmanager_ssh_hostname }}
+
+            # Post SSH is listening on defaults to port 22
+            # port: {{ pvmanager_ssh_port }}
+
+            # SSH username to provide when connecting
+            identity: {{ pvmanager_ssh_identity }}
+
+            # RSA/DSA privake key file to authenticate to management server
+            privateKeyFile: {{ pvmanager_ssh_keyfile }}
+
+            # RSA/DSA privake key data inline
+            #privateKey: << pvmanager_ssh_key_data >>
+
+            # If a privateKeyFile is set, the token is the password used to decrypt the privateKeyFile
+            # If a privateKeyFile is NOT set, token is used for password authentication.
+            token: {{ pvmanager_ssh_token }}
+
+          # For the NFS provider, provide details about where to mount the new volumes that are created
+          nfs:
+            # Hostname of the NFS server to mount
+            hostname: {{ pvmanager_nfs_hostname }}
+
+            # Export root for new volumes, the combination of this value and the UUID are expected to be mountable by OpenShift nodes
+            exportRoot: {{ pvmanager_nfs_exportroot }}
+
+          # For the ZFS provider, these details are used when creating new ZFS volumes.  This expected to be exported at the location
+          # specified in the NFS configuration block
+          zfs:
+            # ZFS file system to use as the base for creating new filesystems
+            rootPath: {{ pvmanager_zfs_rootpath }}
+
+            # Specify if `sudo` is required on the management host to create ZFS files systems (required due to some NFS export configurations)
+            becomeRoot: {{ pvmanager_zfs_becomeroot }}
+
+            # How to pass the storage.request value from the PVC to ZFS
+            #  ignore - Do not set a ZFS quota or reservation
+            #  quota - Set the ZFS quota to the value specified in the pvc storage.request (*Default)
+            #  reservation - Set the ZFS reservation to the value specified in the pvc storage.request
+            #  both - Set both the ZFS reservation and quota to the value specified in the pvc storage.request
+            #quotaMode: quota
+
+            # Default unix mode to apply to the newly created filesystem, to ensure that new pods are able to access this volume in OpenShift a default of 0775 is used if no value is specified
+            unixMode: 0775
