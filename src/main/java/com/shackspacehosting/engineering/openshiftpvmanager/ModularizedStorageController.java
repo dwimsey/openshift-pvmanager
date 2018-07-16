@@ -61,8 +61,8 @@ public class ModularizedStorageController implements IStorageController {
 		String requestedStorageClass = storageControllerConfiguration.getDefaultStorageClass();
 		if(annotations != null) {
 			if(annotations.containsKey(ANNOTATION_STORAGE_CLASS)) {
-			requestedStorageClass = annotations.get(ANNOTATION_STORAGE_CLASS);
-		}
+				requestedStorageClass = annotations.get(ANNOTATION_STORAGE_CLASS);
+			}
 		} else {
 			annotations = new HashMap<>();
 		}
@@ -76,11 +76,11 @@ public class ModularizedStorageController implements IStorageController {
 			annotations.remove(ANNOTATION_PVMANAGER_PVTAG);
 
 			final NfsVolumeProperties props = provider.createPersistentVolume(annotations, uuid, sizeInBytes);
-				if(props != null) {
+			if(props != null) {
 				props.setPVName(pvName);
-					// The provider handled the request, no further processing is needed.
-					return props;
-				}
+				// The provider handled the request, no further processing is needed.
+				return props;
+			}
 		}finally {
 			annotations.remove(ANNOTATION_PVMANAGER_PVREF);
 		}
@@ -101,7 +101,8 @@ public class ModularizedStorageController implements IStorageController {
 		StorageProvider provider = storageControllerConfiguration.getStorageProviders().get(requestedStorageClass);
 		if(provider == null) {
 			LOG.error("Could not find a storage provider to service the cleanup request: " + requestedStorageClass);
-				provider.removePersistentVolume(annotations);
+		} else {
+			provider.removePersistentVolume(annotations);
 		}
 	}
 }
