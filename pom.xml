@@ -21,12 +21,31 @@
 	<properties>
 		<ignite.version>2.5.0</ignite.version>
 		<skipTests>true</skipTests>
-		<docker.registry.base>docker-registry-default.pods.origin.shackspacehosting.com</docker.registry.base>
-		<project.namespace>devops</project.namespace>
+
+
+		<docker.image.skip>true</docker.image.skip>
+		<docker.push.skip>true</docker.push.skip>
+		<docker.push.versiontag.skip>true</docker.push.versiontag.skip>
+		<docker.registry.host>docker.io</docker.registry.host>
+		<docker.registry.namespace>dwimsey</docker.registry.namespace>
+		<docker.latest.tag>snapshot</docker.latest.tag>
+		<docker.imagename>pvmanager</docker.imagename>
+
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<java.version>1.8</java.version>
 	</properties>
+
+	<profiles>
+		<profile>
+			<id>dockerhub</id>
+			<properties>
+				<docker.image.skip>false</docker.image.skip>
+				<docker.push.skip>false</docker.push.skip>
+				<docker.push.versiontag.skip>false</docker.push.versiontag.skip>
+			</properties>
+		</profile>
+	</profiles>
 
 	<dependencies>
 		<dependency>
@@ -173,6 +192,7 @@
 					</execution>
 				</executions>
 			</plugin>
+
 			<plugin>
 				<groupId>com.spotify</groupId>
 				<artifactId>dockerfile-maven-plugin</artifactId>
@@ -184,20 +204,48 @@
 						<goals>
 							<goal>build</goal>
 						</goals>
+						<configuration>
+							<skip>${docker.image.skip}</skip>
+						</configuration>
 					</execution>
 					<execution>
 						<id>docker-push</id>
-						<phase>install</phase>
+						<phase>deploy</phase>
 						<goals>
 							<goal>push</goal>
 						</goals>
+						<configuration>
+							<skip>${docker.push.skip}</skip>
+						</configuration>
+					</execution>
+					<execution>
+						<id>docker-version-tag</id>
+						<phase>deploy</phase>
+						<goals>
+							<goal>tag</goal>
+						</goals>
+						<configuration>
+							<skip>${docker.push.versiontag.skip}</skip>
+							<tag>${project.version}</tag>
+						</configuration>
+					</execution>
+					<execution>
+						<id>docker-version-tag-push</id>
+						<phase>deploy</phase>
+						<goals>
+							<goal>push</goal>
+						</goals>
+						<configuration>
+							<skip>${docker.push.versiontag.skip}</skip>
+							<tag>${project.version}</tag>
+						</configuration>
 					</execution>
 				</executions>
 				<configuration>
 					<useMavenSettingsForAuth>true</useMavenSettingsForAuth>
 					<contextDirectory>target</contextDirectory>
-					<repository>${docker.registry.base}/${project.namespace}/${project.artifactId}</repository>
-					<tag>${project.version}</tag>
+					<repository>${docker.registry.host}/${docker.registry.namespace}/${docker.imagename}</repository>
+					<tag>${docker.latest.tag}</tag>
 				</configuration>
 			</plugin>
 			<plugin>
