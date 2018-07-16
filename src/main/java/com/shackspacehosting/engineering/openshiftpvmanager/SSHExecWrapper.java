@@ -66,7 +66,11 @@ public class SSHExecWrapper {
 			((ChannelExec) channel).setCommand(command);
 			InputStream commandOutput = channel.getInputStream();
 			InputStream commandErrOutput = ((ChannelExec) channel).getErrStream();
-			channel.connect();
+			try {
+				channel.connect();
+			} catch(JSchException e) {
+				channel.connect();
+			}
 			int readByte = commandOutput.read();
 
 			while (readByte != 0xffffffff) {
