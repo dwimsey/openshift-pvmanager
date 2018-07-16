@@ -615,9 +615,9 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 		try {
 			V1PersistentVolume npv = api.createPersistentVolume(pv, null);
 			if(annotations.containsKey(ANNOTATION_CLONESNAPSHOT)) {
-				LOG.info("PV created for PVC " + pvc.getNamespace() + "-" + pvc.getVolumeName() + " -> " + npv.getMetadata().getName() + " on " + persistentVolumeProperties.getNfsHostname() + ":" + persistentVolumeProperties.getNfsExportPath());
+				LOG.info("PV cloned for PVC " + pvc.getNamespace() + "-" + pvc.getVolumeName() + " -> " + npv.getMetadata().getName() + " on " + persistentVolumeProperties.getNfsHostname() + ":" + persistentVolumeProperties.getNfsExportPath());
 			} else {
-				LOG.info("PV cloned for PVC " + pvc.getNamespace() + "-" + pvc.getVolumeName() + " -> " + npv.getMetadata().getName() + " on " + persistentVolumeProperties.getNfsHostname() + ":" + persistentVolumeProperties.getNfsExportPath() + " [cloned from " + "clonesource" +  "]");
+				LOG.info("PV created for PVC " + pvc.getNamespace() + "-" + pvc.getVolumeName() + " -> " + npv.getMetadata().getName() + " on " + persistentVolumeProperties.getNfsHostname() + ":" + persistentVolumeProperties.getNfsExportPath() + " [cloned from " + "clonesource" +  "]");
 			}
 		} catch (Exception e) {
 			LOG.error("Exception: " + e.getMessage());
