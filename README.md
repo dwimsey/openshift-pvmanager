@@ -1,15 +1,15 @@
 OpenShift Persistent Volume Manager
 ===================================
 
-This application is currently a dirty hack to provide automatic creation of persistent volumes in OpenShift Origin
-environments using NFS to connect to ZFS backed storage volumes.
+This application is provides automatic creation and deletion of persistent volumes on Kubernetes clusters using NFS and ZFS.
 
-The basic idea is that PVManager watches an OpenShift cluster, looking for persistent volume claims that have not been
-fulfilled and then creates a persistent volume that matches the requirements provided for size and access modes.
+On startup several connections are made to the Kubernetes API to watch for changes to persistent volumes and persistent volume
+claims.  When a change occurs, pvmanager updates a persistent volume to match the required configuration.  Users may control
+created filesystem using annotations when creating a persistent volume claim.
 
-This is currently just a stub of a real application and needs a fair amount of work to be something used in production.
+Applications may take advantage of instant file system clones using the clone-from annotation to clone an existing PVC.
 
-Users may control some aspects of how the ZFS filesystem behaves using annotations:
+Users may control some aspects of how the ZFS filesystem behaves using the following annotations:
 
 |Annotation|Default|Description|
 |----------|-------|-----------|
