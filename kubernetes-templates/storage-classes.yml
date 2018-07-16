@@ -1,0 +1,31 @@
+---
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: basic
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+    kubernetes.io/description: Basic RAID storage
+    pvmanager.wimsey.us/storageclass: "basic"
+provisioner: pvmanager.wimsey.us
+parameters:
+---
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: ssd
+  annotations:
+    kubernetes.io/description: SSD RAID storage
+    pvmanager.wimsey.us/storageclass: "ssd"
+provisioner: pvmanager.wimsey.us
+parameters:
+---
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: mem
+  annotations:
+    kubernetes.io/description: Volatile in-memory based storage
+    pvmanager.wimsey.us/storageclass: "mem"
+provisioner: pvmanager.wimsey.us
+parameters:

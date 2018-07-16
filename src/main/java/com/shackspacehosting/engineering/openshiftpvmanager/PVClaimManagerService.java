@@ -598,7 +598,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 
 		spec.setAccessModes(pvc.accessModes);
 		// Delete, Retain, Recycle
-		spec.setPersistentVolumeReclaimPolicy("Delete");
+		spec.setPersistentVolumeReclaimPolicy("Retain");
 		spec.setCapacity(capacity);
 		spec.setNfs(nfsSource);
 
