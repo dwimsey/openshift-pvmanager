@@ -526,6 +526,8 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 
 		removeInternalAnnotations(annotations);
 
+		String cloneNfsHost = null;
+		String cloneZfsPath = null;
 
 		String cloneFrom = annotations.get(ANNOTATION_CLONEFROM);
 		if(cloneFrom != null && !cloneFrom.isEmpty()) {
@@ -551,10 +553,10 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 							if(!ANNOTATION_STORAGE_PROVISIONER_NAME.equals(managedBy)) {
 								LOG.error("Persistent volume found for cloning but is not managed by pvmanager: " + pvc.getNamespace() + "-" + cloneFrom + ": " + managedBy);
 							} else {
-								String nfsHost = cloneSourcePvAnnotations.get(ANNOTATION_VOLUME_HOST);
-								String zfsPath = cloneSourcePvAnnotations.get(ANNOTATION_VOLUME_PATH);
+								cloneNfsHost = cloneSourcePvAnnotations.get(ANNOTATION_VOLUME_HOST);
+								cloneZfsPath = cloneSourcePvAnnotations.get(ANNOTATION_VOLUME_PATH);
 
-								annotations.put(ANNOTATION_CLONEREF, nfsHost + ":" + zfsPath);
+								annotations.put(ANNOTATION_CLONEREF, cloneNfsHost + ":" + cloneZfsPath);
 							}
 						}
 					}
@@ -615,9 +617,9 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 		try {
 			V1PersistentVolume npv = api.createPersistentVolume(pv, null);
 			if(annotations.containsKey(ANNOTATION_CLONESNAPSHOT)) {
-				LOG.info("PV cloned for PVC " + pvc.getNamespace() + "-" + pvc.getVolumeName() + " -> " + npv.getMetadata().getName() + " on " + persistentVolumeProperties.getNfsHostname() + ":" + persistentVolumeProperties.getNfsExportPath());
+				LOG.info("PV cloned for PVC " + pvc.getNamespace() + "-" + pvc.getVolumeName() + " -> " + npv.getMetadata().getName() + " on " + persistentVolumeProperties.getNfsHostname() + ":" + persistentVolumeProperties.getNfsExportPath() + " [cloned from " + cloneFrom + " (" + cloneNfsHost + ":" + cloneZfsPath +  ")]");
 			} else {
-				LOG.info("PV created for PVC " + pvc.getNamespace() + "-" + pvc.getVolumeName() + " -> " + npv.getMetadata().getName() + " on " + persistentVolumeProperties.getNfsHostname() + ":" + persistentVolumeProperties.getNfsExportPath() + " [cloned from " + "clonesource" +  "]");
+				LOG.info("PV created for PVC " + pvc.getNamespace() + "-" + pvc.getVolumeName() + " -> " + npv.getMetadata().getName() + " on " + persistentVolumeProperties.getNfsHostname() + ":" + persistentVolumeProperties.getNfsExportPath());
 			}
 		} catch (Exception e) {
 			LOG.error("Exception: " + e.getMessage());
