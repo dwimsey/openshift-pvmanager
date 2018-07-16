@@ -8,6 +8,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.UUID;
 
@@ -237,6 +239,7 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 		sshWrapper = new SSHExecWrapper(sshHostname, sshPort, sshUsername, sshPrivateKey, sshToken);
 	}
 
+	final private static DateTimeFormatter snapshotTimestampFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 	public NfsVolumeProperties createPersistentVolume(Map<String, String> annotations, UUID uuid, long sizeInBytes) throws Exception {
 		String command;
 		int cmdReturnValue = 0;
@@ -373,18 +376,50 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 		extraArgs = extraArgs + " -o " + ANNOTATION_PVMANAGER_PVREF + "=" +
 				annotations.get(ANNOTATION_PVMANAGER_PVREF);
 
-		String zfsCloneSourceVolumePath = annotations.get(ANNOTATION_CLONEFROM);
-//		if(zfsCloneSourceVolumePath != null) {
-//			command = (becomeRoot ? "sudo " : "") + "zfs clone -o quota=" + sizeInBytes + extraArgs + " " + zfsCloneSourceVolumePath + " " + zfsVolumePath;
-//		} else {
+		StringBuilder outputBuffer;
+		String zfsCloneRef = annotations.get(ANNOTATION_CLONEREF);
+		if(zfsCloneRef != null) {
+			String[] parts = zfsCloneRef.split(":");
+			if(parts.length != 2) {
+				LOG.error("Could not parse clone reference, expected 2 parts got " + parts.length + ": " + zfsCloneRef);
+				return null;
+			}
+			String nfsHost = parts[0];
+			String zfsFilesystem = parts[1];
+
+			if(!nfsHost.equals(getNfsHostname())) {
+				LOG.error("Management host for clone source is different than this provider: " + getNfsHostname() + " != " + nfsHost);
+				return null;
+			}
+
+			if(!zfsFilesystem.startsWith(getZfsRootPath()) && ((zfsFilesystem.length() - 36) == getZfsRootPath().length())) {
+				LOG.error("Management host for clone source is different than this provider: " + getZfsRootPath() + " != " + zfsFilesystem);
+				return null;
+			}
+
+			String zfsSnapshotName = zfsFilesystem + "@pvmanager-" + annotations.get(ANNOTATION_PVMANAGER_PVREF) + "-" + OffsetDateTime.now().format(snapshotTimestampFormatter);
+			annotations.put(ANNOTATION_CLONESNAPSHOT, zfsSnapshotName);
+			command = (becomeRoot ? "sudo " : "") + "zfs snapshot -o " + ANNOTATION_PVMANAGER_PVREF + "=" +
+					annotations.get(ANNOTATION_PVMANAGER_PVREF) + " " + zfsSnapshotName;
+			outputBuffer = new StringBuilder();
+
+			cmdReturnValue = sshWrapper.exec(command, outputBuffer);
+			if (cmdReturnValue != 0) {
+				LOG.error("zfs snapshot volume failed: exit status: " + cmdReturnValue);
+				LOG.error(outputBuffer.toString());
+				return null;
+			}
+
+			command = (becomeRoot ? "sudo " : "") + "zfs clone " + extraArgs + " " + zfsSnapshotName + " " + zfsVolumePath;
+
+		} else {
 			command = (becomeRoot ? "sudo " : "") + "zfs create " + extraArgs + " " + zfsVolumePath;
-//		}
+		}
 
-		StringBuilder outputBuffer = new StringBuilder();
-
+		outputBuffer = new StringBuilder();
 		cmdReturnValue = sshWrapper.exec(command, outputBuffer);
 		if (cmdReturnValue != 0) {
-			LOG.error("zfs exit status: " + cmdReturnValue);
+			LOG.error("zfs " + ((zfsCloneRef != null) ? "clone" : "create") + " volume failed: exit status: " + cmdReturnValue);
 			LOG.error(outputBuffer.toString());
 			return null;
 		}
@@ -394,7 +429,7 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 			outputBuffer = new StringBuilder();
 			cmdReturnValue = sshWrapper.exec(command, outputBuffer);
 			if (cmdReturnValue != 0) {
-				LOG.error("chmod exit status: " + cmdReturnValue);
+				LOG.error("zfs chmod exit status: " + cmdReturnValue);
 				LOG.error(outputBuffer.toString());
 				return null;
 			}
@@ -416,17 +451,39 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 		}
 		// Convert it to a UUID object and then u.toString() to ensure theres no funny business being crafted here to break out of the shell
 		UUID u = UUID.fromString(uuid);
-		String command = (becomeRoot ? "sudo " : "") + "zfs destroy " + Paths.get(zfsRootPath, u.toString()).toString();
+		String command;
+		StringBuilder outputBuffer;
+		int xs;
 
-		StringBuilder outputBuffer = new StringBuilder();
+		command = (becomeRoot ? "sudo " : "") + "zfs destroy " + Paths.get(zfsRootPath, u.toString()).toString();
 
-		int xs = 0;
+		outputBuffer = new StringBuilder();
 		xs = sshWrapper.exec(command, outputBuffer);
 		if (xs != 0) {
-			LOG.error("Exit status: " + xs);
+			LOG.error("zfs destroy volume failed: exit status: " + xs + ": filesytem orphan: " + Paths.get(zfsRootPath, u.toString()).toString());
 			LOG.error(outputBuffer.toString());
-			return;
 		}
+
+		String sourceSnapshot = annotations.get(ANNOTATION_CLONESNAPSHOT);
+		if(sourceSnapshot != null && !sourceSnapshot.isEmpty()) {
+			if(!sourceSnapshot.startsWith(getZfsRootPath())) {
+				LOG.error("Could not destroy snapshot, snapshot does not start with zfsRootPath: " + getZfsRootPath() + " != " + sourceSnapshot);
+				return;
+			}
+			if(!sourceSnapshot.contains("@")) {
+				LOG.error("Could not destroy snapshot, snapshot does not start with zfsRootPath: " + getZfsRootPath() + " != " + sourceSnapshot);
+				return;
+			}
+			command = (becomeRoot ? "sudo " : "") + "zfs destroy " + sourceSnapshot;
+
+			outputBuffer = new StringBuilder();
+			xs = sshWrapper.exec(command, outputBuffer);
+			if (xs != 0) {
+				LOG.error("zfs destroy snapshot failed: exit status: " + xs + ": snapshot orphan: " + sourceSnapshot);
+				LOG.error(outputBuffer.toString());
+			}
+		}
+
 	}
 
 	@Override
