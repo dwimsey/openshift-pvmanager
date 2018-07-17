@@ -22,6 +22,7 @@ Users may control some aspects of how the ZFS filesystem behaves using the follo
 |`pvmanager.wimsey.us/snapdir` | *hidden* | Determine how the snapshot directory for this file system is exposed |
 |`pvmanager.wimsey.us/sync` | *off* | Determines how fsync is handled for this filesystem |
 |`pvmanager.wimsey.us/casesensitive` | *insensitive* | Determines if this filesystem is case sensitive |
+|`pvmanager.wimsey.us/reclaim-policy` | *Delete* | Override default value for reclaim policy setting for persistent volumes created by pvmanager |
 |`pvmanager.wimsey.us/clone-from` | *example-pvc* | When specified on a PVC, pvmanager will look for a PVC matching the name specified in this value within the same namespace.  If a match is found and exists on a compatible ZFS root the specfied PVC will have a snapshot created and a clone filesystem created for this mount. |
 
 

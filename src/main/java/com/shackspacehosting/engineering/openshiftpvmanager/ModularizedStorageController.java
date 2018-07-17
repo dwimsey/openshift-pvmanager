@@ -14,6 +14,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_PVMANAGER_PVTAG;
+import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_PVMANAGER_RECLAIM_POLICY;
+import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_RECLAIM_POLICY;
+import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_RECLAIM_POLICY_DELETE;
+import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_RECLAIM_POLICY_RECYCLE;
+import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_RECLAIM_POLICY_RETAIN;
 import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_STORAGE_CLASS;
 import static com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.NFS.ANNOTATION_PVMANAGER_PVREF;
 
@@ -73,16 +78,38 @@ public class ModularizedStorageController implements IStorageController {
 			annotations.put(ANNOTATION_PVMANAGER_PVTAG, uuid.toString().substring(0,7));
 			String pvName = replaceTokensInString(annotations, provider.getPvNameFormat());
 			annotations.put(ANNOTATION_PVMANAGER_PVREF, pvName);
-			annotations.remove(ANNOTATION_PVMANAGER_PVTAG);
 
 			final NfsVolumeProperties props = provider.createPersistentVolume(annotations, uuid, sizeInBytes);
 			if(props != null) {
+				String reclaimPolicy = provider.getReclaimPolicy();
+				if(annotations.containsKey(ANNOTATION_RECLAIM_POLICY)) {
+					switch(reclaimPolicy.toLowerCase()) {
+						case "delete":
+							reclaimPolicy = ANNOTATION_RECLAIM_POLICY_DELETE;
+							break;
+						case "retain":
+							reclaimPolicy = ANNOTATION_RECLAIM_POLICY_RETAIN;
+							break;
+						case "recycle":
+							reclaimPolicy = ANNOTATION_RECLAIM_POLICY_RECYCLE;
+							break;
+						default:
+							LOG.warn("Unexpected " + ANNOTATION_RECLAIM_POLICY + " annotation value: " + reclaimPolicy);
+							reclaimPolicy = provider.getReclaimPolicy();
+							break;
+					}
+				} else {
+					reclaimPolicy = provider.getReclaimPolicy();
+				}
+				props.setProviderReclaimPolicy(reclaimPolicy);
 				props.setPVName(pvName);
 				// The provider handled the request, no further processing is needed.
 				return props;
 			}
-		}finally {
+		} finally {
+			annotations.remove(ANNOTATION_PVMANAGER_PVTAG);
 			annotations.remove(ANNOTATION_PVMANAGER_PVREF);
+			annotations.remove(ANNOTATION_PVMANAGER_RECLAIM_POLICY);
 		}
 
 		LOG.error("Could not find a storage provider to service the request: " + requestedStorageClass);

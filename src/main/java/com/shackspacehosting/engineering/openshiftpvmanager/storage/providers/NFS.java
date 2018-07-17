@@ -279,6 +279,7 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 				extraArgs = extraArgs + " -o recordsize=" + blockSize;
 			}
 		}
+
 		String checksumMode = annotations.get(ANNOTATION_CHECKSUM_MODE);
 		if(checksumMode != null) {
 			switch(checksumMode.toLowerCase()) {
@@ -340,6 +341,9 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 				case "on":
 				case "off":
 					extraArgs = extraArgs + " -o exec=" + execMode.toLowerCase();
+					break;
+				default:
+					LOG.warn("Unexpected " + ANNOTATION_EXEC + " annotation value: " + execMode);
 					break;
 			}
 		}

@@ -8,6 +8,7 @@ public class NfsVolumeProperties {
 		this.nfsExportPath = nfs.getPath();
 		this.readOnly = ((nfs.isReadOnly() != null) ? nfs.isReadOnly() : false);
 		this.pvName = null;
+		this.reclaimPolicy = null;
 	}
 
 	public String getNfsHostname() {
@@ -26,6 +27,7 @@ public class NfsVolumeProperties {
 	final String nfsExportPath;
 	final boolean readOnly;
 	String pvName;
+	String reclaimPolicy;
 
 	public NfsVolumeProperties(String nfsHostname, String s, boolean readOnly, String namePrefix) {
 		this.nfsHostname = nfsHostname;
@@ -43,6 +45,13 @@ public class NfsVolumeProperties {
 
 	public void setPVName(String namePrefix) {
 		this.pvName = namePrefix;
+	}
+
+	public String getProviderReclaimPolicy() {
+		return this.reclaimPolicy;
+	}
+	public void setProviderReclaimPolicy(String reclaimPolicy) {
+		this.reclaimPolicy = reclaimPolicy;
 	}
 
 }

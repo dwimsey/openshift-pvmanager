@@ -18,6 +18,15 @@ public class StorageProvider {
 		this.storageClass = storageClass;
 	}
 
+	String reclaimPolicy = ANNOTATION_RECLAIM_POLICY_DEFAULT;
+	public String getReclaimPolicy() {
+		return reclaimPolicy;
+	}
+
+	public void setReclaimPolicy(String reclaimPolicy) {
+		this.reclaimPolicy = reclaimPolicy;
+	}
+
 	IStorageManagementProvider managementProvider;
 	public IStorageManagementProvider getManagementProvider() {
 		return managementProvider;

@@ -55,6 +55,12 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 	final public static String ANNOTATION_COMPRESSION_MODE = ANNOTATION_BASE + "compression";
 	final public static String ANNOTATION_ATIME = ANNOTATION_BASE + "atime";
 	final public static String ANNOTATION_EXEC = ANNOTATION_BASE + "exec";
+	final public static String ANNOTATION_RECLAIM_POLICY = ANNOTATION_BASE + "reclaim-policy";
+	final public static String ANNOTATION_PVMANAGER_RECLAIM_POLICY = "pvmanager:reclaim-policy";
+	final public static String ANNOTATION_RECLAIM_POLICY_RECYCLE = "Recycle";
+	final public static String ANNOTATION_RECLAIM_POLICY_RETAIN = "Retain";
+	final public static String ANNOTATION_RECLAIM_POLICY_DELETE = "Delete";
+	final public static String ANNOTATION_RECLAIM_POLICY_DEFAULT = ANNOTATION_RECLAIM_POLICY_DELETE;
 
 	final public static String ANNOTATION_LOGBIAS = ANNOTATION_BASE + "logbias";
 	final public static String ANNOTATION_SNAPDIR = ANNOTATION_BASE + "snapdir";
@@ -473,18 +479,14 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 					// recycle is not supported because there are too many annotations that are not compared
 					// so just delete this and we'll let it create a new one (since this is fast with zfs) when we
 					// need it
-					if("recycle".equalsIgnoreCase(pvcn.getReclaimPolicy())) {
+					if(ANNOTATION_RECLAIM_POLICY_RECYCLE.equalsIgnoreCase(pvcn.getReclaimPolicy())) {
 						deletePersistentVolume(client, pvcn); // Really we shouldn't do this for this reclaim policy, the pv is supposed to be reused, but we're doing to delete it anyway because ZFS recreates filesystems instantantly and recycling is hard with all the options available0
 						removePersistentVolumeResources(client, pvcn); // Really we shouldn't do this because it will be called when the PV is deleted by the previous call and we get the notification for that, but if we miss that notification this has already handled it!
-					} else if("retain".equalsIgnoreCase(pvcn.getReclaimPolicy())) {
+					} else if(ANNOTATION_RECLAIM_POLICY_RETAIN.equalsIgnoreCase(pvcn.getReclaimPolicy())) {
 						// this allows us to have some sort of after-the-fact cleanup to help deal with volumes of critical data
-						// for now, we just delete it anyway
-						deletePersistentVolume(client, pvcn); // Really we shouldn't do this for this reclaim policy, retain means we should just let it sit unattended
-						removePersistentVolumeResources(client, pvcn); // Really we shouldn't do this because it will be called when the PV is deleted by the previous call and we get the notification for that, but if we miss that notification this has already handled it!
-					} else if("delete".equalsIgnoreCase(pvcn.getReclaimPolicy())) {
+						// another process will deal with these items later
+					} else if(ANNOTATION_RECLAIM_POLICY_DELETE.equalsIgnoreCase(pvcn.getReclaimPolicy())) {
 						// do nothing here, deletion is coming soon enough when kubernetes calls for the deletion of the PersistentVolume itself
-						deletePersistentVolume(client, pvcn); // Really we shouldn't do this for this reclaim policy, the pv is going to be deleted by the system or already has
-						removePersistentVolumeResources(client, pvcn); // Really we shouldn't do this because it will be called when the PV is deleted by the previous call and we get the notification for that, but if we miss that notification this has already handled it!
 					} else {
 						LOG.warn("Released PV unexpected reclaim policy (" + pvcn.getName() + "): " + pvcn.getReclaimPolicy());
 					}
@@ -598,7 +600,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 
 		spec.setAccessModes(pvc.accessModes);
 		// Delete, Retain, Recycle
-		spec.setPersistentVolumeReclaimPolicy("Retain");
+		spec.setPersistentVolumeReclaimPolicy(persistentVolumeProperties.getProviderReclaimPolicy());
 		spec.setCapacity(capacity);
 		spec.setNfs(nfsSource);
 

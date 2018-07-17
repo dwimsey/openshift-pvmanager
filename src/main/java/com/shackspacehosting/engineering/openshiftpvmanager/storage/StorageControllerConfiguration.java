@@ -13,6 +13,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
+import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_RECLAIM_POLICY_DEFAULT;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class StorageControllerConfiguration {
 	private static final Logger LOG = LoggerFactory.getLogger(ModularizedStorageController.class);
@@ -53,6 +55,16 @@ public class StorageControllerConfiguration {
 				}
 				provider.setStorageClass(storageClass);
 
+				if(storageProviderConfigurationNode.has("reclaimPolicy")) {
+					JsonNode rp = storageProviderConfigurationNode.get("reclaimPolicy");
+					if (rp != null && !rp.asText().isEmpty()) {
+						provider.setReclaimPolicy(rp.asText());
+					} else {
+						LOG.info("Storage provider configuration reclaimPolicy is empty, assuming default value of " + ANNOTATION_RECLAIM_POLICY_DEFAULT + ": " + storageClass);
+					}
+				} else {
+					LOG.info("Storage provider configuration reclaimPolicy is missing, assuming default value of " + ANNOTATION_RECLAIM_POLICY_DEFAULT + ": " + storageClass);
+				}
 
 				String pvNameFormat;
 				if(storageProviderConfigurationNode.has("pvNameFormat")) {
