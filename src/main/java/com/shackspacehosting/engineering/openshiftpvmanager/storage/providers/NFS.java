@@ -274,6 +274,7 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 		String blockSizeStr = annotations.get(ANNOTATION_BLOCKSIZE);
 		if(blockSizeStr != null) {
 			int blockSize = Integer.valueOf(blockSizeStr);
+			// Make sure the blockSize is between 512 and maxBlockSize bytes and is a power of two
 			if(blockSize >= 512 && blockSize <= maxBlockSize && ((blockSize & (blockSize - 1)) == 0)) {
 				extraArgs = extraArgs + " -o recordsize=" + blockSize;
 			}
@@ -290,6 +291,9 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 				case "sha512":
 				case "skein":
 					extraArgs = extraArgs + " -o checksum=" + checksumMode.toLowerCase();
+					break;
+				default:
+					LOG.warn("Unexpected " + ANNOTATION_CHECKSUM_MODE + " annotation value: " + checksumMode);
 					break;
 			}
 		}
@@ -313,6 +317,9 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 				case "gzip-9":
 					extraArgs = extraArgs + " -o compression=" + compressionMode.toLowerCase();
 					break;
+				default:
+					LOG.warn("Unexpected " + ANNOTATION_COMPRESSION_MODE + " annotation value: " + compressionMode);
+					break;
 			}
 		}
 		String atimeMode = annotations.get(ANNOTATION_ATIME);
@@ -321,6 +328,9 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 				case "on":
 				case "off":
 					extraArgs = extraArgs + " -o atime=" + atimeMode.toLowerCase();
+					break;
+				default:
+					LOG.warn("Unexpected " + ANNOTATION_ATIME + " annotation value: " + atimeMode);
 					break;
 			}
 		}
@@ -340,6 +350,9 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 				case "throughput":
 					extraArgs = extraArgs + " -o logbias=" + logMode.toLowerCase();
 					break;
+				default:
+					LOG.warn("Unexpected " + ANNOTATION_LOGBIAS + " annotation value: " + logMode);
+					break;
 			}
 		}
 		String snapMode = annotations.get(ANNOTATION_SNAPDIR);
@@ -348,6 +361,9 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 				case "hidden":
 				case "visible":
 					extraArgs = extraArgs + " -o snapdir=" + snapMode.toLowerCase();
+					break;
+				default:
+					LOG.warn("Unexpected " + ANNOTATION_SNAPDIR + " annotation value: " + snapMode);
 					break;
 			}
 		}
@@ -359,6 +375,9 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 				case "disabled":
 					extraArgs = extraArgs + " -o sync=" + syncMode.toLowerCase();
 					break;
+				default:
+					LOG.warn("Unexpected " + ANNOTATION_SYNC + " annotation value: " + syncMode);
+					break;
 			}
 		}
 		String caseMode = annotations.get(ANNOTATION_CASESENSITIVE);
@@ -368,6 +387,9 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 				case "insensitive":
 				case "mixed":
 					extraArgs = extraArgs + " -o casesensitivity=" + caseMode.toLowerCase();
+					break;
+				default:
+					LOG.warn("Unexpected " + ANNOTATION_CASESENSITIVE + " annotation value: " + caseMode);
 					break;
 			}
 		}
