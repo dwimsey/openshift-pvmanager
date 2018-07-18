@@ -30,8 +30,8 @@ import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import static com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.NFS.ANNOTATION_VOLUME_HOST;
-import static com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.NFS.ANNOTATION_VOLUME_PATH;
+import static com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.ZfsOverNfs.ANNOTATION_VOLUME_HOST;
+import static com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.ZfsOverNfs.ANNOTATION_VOLUME_PATH;
 import static io.kubernetes.client.custom.Quantity.Format.BINARY_SI;
 
 @Component

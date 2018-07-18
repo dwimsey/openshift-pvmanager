@@ -15,8 +15,8 @@ import java.util.UUID;
 
 import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.*;
 
-public class NFS implements IStorageManagementProvider, AutoCloseable {
-	private static final Logger LOG = LoggerFactory.getLogger(NFS.class);
+public class ZfsOverNfs implements IStorageManagementProvider, AutoCloseable {
+	private static final Logger LOG = LoggerFactory.getLogger(ZfsOverNfs.class);
 
 	final public static String ANNOTATION_VOLUME_HOST = ANNOTATION_BASE + "nfs-host";
 	final public static String ANNOTATION_VOLUME_PATH = ANNOTATION_BASE + "nfs-path";
@@ -142,7 +142,7 @@ public class NFS implements IStorageManagementProvider, AutoCloseable {
 		this.zfsRootPath = zfsRootPath;
 	}
 
-	public NFS(StorageProvider provider, JsonNode cfgNode) throws IOException {
+	public ZfsOverNfs(StorageProvider provider, JsonNode cfgNode) throws IOException {
 		this.provider=provider;
 		boolean hasError = false;
 

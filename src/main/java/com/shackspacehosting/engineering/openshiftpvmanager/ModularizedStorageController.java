@@ -20,7 +20,7 @@ import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManage
 import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_RECLAIM_POLICY_RECYCLE;
 import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_RECLAIM_POLICY_RETAIN;
 import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_STORAGE_CLASS;
-import static com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.NFS.ANNOTATION_PVMANAGER_PVREF;
+import static com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.ZfsOverNfs.ANNOTATION_PVMANAGER_PVREF;
 
 public class ModularizedStorageController implements IStorageController {
 	private static final Logger LOG = LoggerFactory.getLogger(ModularizedStorageController.class);

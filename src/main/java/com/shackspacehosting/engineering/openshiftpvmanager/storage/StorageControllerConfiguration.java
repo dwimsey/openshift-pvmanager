@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shackspacehosting.engineering.openshiftpvmanager.ModularizedStorageController;
 import com.shackspacehosting.engineering.openshiftpvmanager.kubernetes.ObjectNameMapper;
-import com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.NFS;
+import com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.ZfsOverNfs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,17 +76,15 @@ public class StorageControllerConfiguration {
 
 				String providerName = storageProviderConfigurationNode.get("managementProvider").asText();
 				switch (providerName.toUpperCase()) {
-					case "NFS":
+					case "ZfsOverNfs":
 						JsonNode pName = cfgNode.get("provider");
 						String s = pName.asText();
 						if (s.equals("zfs")) {
-							NFS nfs;
 							try {
-								nfs = new NFS(provider, cfgNode);
+								provider.setManagementProvider(new ZfsOverNfs(provider, cfgNode));
 							} catch (IllegalArgumentException iae){
-								throw new RuntimeException("NFS configuration for storage class '" + storageClass + "' has one or more unrecoverable errors.", iae);
+								throw new RuntimeException("ZfsOverNfs configuration for storage class '" + storageClass + "' has one or more unrecoverable errors.", iae);
 							}
-							provider.setManagementProvider(nfs);
 						}
 						break;
 				}
