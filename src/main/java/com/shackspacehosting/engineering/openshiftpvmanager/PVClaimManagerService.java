@@ -519,10 +519,13 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 							Map<String, String> pvAnnotations = persistentVolume.getMetadata().getAnnotations();
 							if(pvAnnotations != null) {
 
-								String patchJson = "{\"op\": \"add\", \"path\": \"/metadata/annotations/" + ANNOTATION_PVMANAGER_RELEASED_TIMESTAMP.replace("/", "~1") + "\", \"value\": \"" + String.valueOf(OffsetDateTime.now().toEpochSecond()) + "\"}";
-								ArrayList<JsonObject> arr = new ArrayList<>();
-								arr.add(((JsonElement)(new Gson()).fromJson(patchJson, JsonElement.class)).getAsJsonObject());
-								api.patchPersistentVolume(pvcn.getName(), arr, null);
+								if(!pvAnnotations.containsKey(ANNOTATION_PVMANAGER_RELEASED_TIMESTAMP)) {
+									// If there isn't a released timestamp already, add one.  This way we only add a timestamp, not modify an existing
+									String patchJson = "{\"op\": \"add\", \"path\": \"/metadata/annotations/" + ANNOTATION_PVMANAGER_RELEASED_TIMESTAMP.replace("/", "~1") + "\", \"value\": \"" + OffsetDateTime.now().toEpochSecond() + "\"}";
+									ArrayList<JsonObject> arr = new ArrayList<>();
+									arr.add(((JsonElement) (new Gson()).fromJson(patchJson, JsonElement.class)).getAsJsonObject());
+									api.patchPersistentVolume(pvcn.getName(), arr, null);
+								}
 							}
 						}
 					} else if(ANNOTATION_RECLAIM_POLICY_DELETE.equalsIgnoreCase(reclaimPolicy)) {
