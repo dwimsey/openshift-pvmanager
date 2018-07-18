@@ -519,7 +519,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 							Map<String, String> pvAnnotations = persistentVolume.getMetadata().getAnnotations();
 							if(pvAnnotations != null) {
 
-								String patchJson = "{\"op\": \"add\", \"path\": \"/metadata/annotations/" + ANNOTATION_PVMANAGER_RELEASED_TIMESTAMP.replace("/", "~1") + "\", \"value\": " + String.valueOf(OffsetDateTime.now().toEpochSecond()) + "}";
+								String patchJson = "{\"op\": \"add\", \"path\": \"/metadata/annotations/" + ANNOTATION_PVMANAGER_RELEASED_TIMESTAMP.replace("/", "~1") + "\", \"value\": \"" + String.valueOf(OffsetDateTime.now().toEpochSecond()) + "\"}";
 								ArrayList<JsonObject> arr = new ArrayList<>();
 								arr.add(((JsonElement)(new Gson()).fromJson(patchJson, JsonElement.class)).getAsJsonObject());
 								api.patchPersistentVolume(pvcn.getName(), arr, null);
@@ -674,7 +674,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 		spec.setAccessModes(pvc.accessModes);
 		// Because pvmanager does not plugin to Kubernetes like the existing persistent volume engines, only the 'Retain'
 		// reclaimPolicy is set.  pvmanager emulates the 'Delete' policy be deleting release persistent volumes itself.
-		// The 'Recycle' policy 
+		// The 'Recycle' policy
 
 		spec.setPersistentVolumeReclaimPolicy("Retain");
 		spec.setCapacity(capacity);
