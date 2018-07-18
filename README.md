@@ -13,15 +13,16 @@ Users may control some aspects of how the ZFS filesystem behaves using the follo
 
 |Annotation|Default|Description|
 |----------|-------|-----------|
-|`pvmanager.wimsey.us/blocksize` | *1024* | Prefered blocksize on disk |
-|`pvmanager.wimsey.us/checksum` | *off* | Determine how checksuming is performed on this filesystem |
-|`pvmanager.wimsey.us/compression` | *gzip-9* | Set the ZFS compression setting for this filesystem |
-|`pvmanager.wimsey.us/atime` | *off* | Determine if atime is enabled on this filesystem |
-|`pvmanager.wimsey.us/exec` | *off* | Determine if the execute bit is disabled for this filesystem |
+|`pvmanager.wimsey.us/blocksize` | *128K* | Prefered blocksize on disk |
+|`pvmanager.wimsey.us/checksum` | *on* | Determine how checksuming is performed on this filesystem |
+|`pvmanager.wimsey.us/compression` | *off* | Set the ZFS compression setting for this filesystem |
+|`pvmanager.wimsey.us/atime` | *on* | Determine if atime is enabled on this filesystem |
+|`pvmanager.wimsey.us/exec` | *on* | Determine if the execute bit is disabled for this filesystem |
+|`pvmanager.wimsey.us/setuid` | *on* | Determine if the set uid bit is disabled for this filesystem |
 |`pvmanager.wimsey.us/logbias` | *throughput* | Determine if this filesystem prefers 'throughput' or 'latency' |
-|`pvmanager.wimsey.us/snapdir` | *hidden* | Determine how the snapshot directory for this file system is exposed |
-|`pvmanager.wimsey.us/sync` | *off* | Determines how fsync is handled for this filesystem |
-|`pvmanager.wimsey.us/casesensitive` | *insensitive* | Determines if this filesystem is case sensitive |
+|`pvmanager.wimsey.us/snapdir` | *hidden* | Controls whether the `.zfs` directory is `hidden` or `visible` in the root of the file system. The default value is hidden. Determine how the snapshot directory for this file system is exposed |
+|`pvmanager.wimsey.us/sync` | *standard* | Determines how fsync is handled for this filesystem |
+|`pvmanager.wimsey.us/casesensitive` | *casesensitive* | Determines if this filesystem is case sensitive |
 |`pvmanager.wimsey.us/reclaim-policy` | *Delete* | Override default value for reclaim policy setting for persistent volumes created by pvmanager |
 |`pvmanager.wimsey.us/clone-from` | *example-pvc* | When specified on a PVC, pvmanager will look for a PVC matching the name specified in this value within the same namespace.  If a match is found and exists on a compatible ZFS root the specfied PVC will have a snapshot created and a clone filesystem created for this mount. |
 
