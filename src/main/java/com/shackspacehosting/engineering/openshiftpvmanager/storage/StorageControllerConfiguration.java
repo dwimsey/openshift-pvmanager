@@ -13,6 +13,9 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
+import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_BASE;
+import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_COMPRESSION_MODE;
+import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_RECLAIM_POLICY;
 import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_RECLAIM_POLICY_DEFAULT;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -35,6 +38,19 @@ public class StorageControllerConfiguration {
 			this.defaultStorageClass = jsonNode.asText();
 		} else {
 			this.defaultStorageClass = "";
+		}
+
+		this.blockedAnnotations = new ArrayList<>();
+		jsonNode = node.get("blockedAnnotations");
+		if (jsonNode != null) {
+			for (Iterator<JsonNode> blockedAnnotationName = jsonNode.elements(); blockedAnnotationName.hasNext(); ) {
+				JsonNode nameNode = blockedAnnotationName.next();
+				this.blockedAnnotations.add(ANNOTATION_BASE + nameNode.asText());
+			}
+		} else {
+			LOG.warn("No global blockedAnnotations list found in configuration, assuming defaults: block compression, reclaim-policy");
+			this.blockedAnnotations.add(ANNOTATION_RECLAIM_POLICY);
+			this.blockedAnnotations.add(ANNOTATION_COMPRESSION_MODE);
 		}
 
 		jsonNode = node.get("storageProviders");
@@ -74,9 +90,25 @@ public class StorageControllerConfiguration {
 				}
 				provider.setPvNameFormat(pvNameFormat);
 
+				// Annotations blocks for particular storage classes are cumulative with the global list, so start with
+				// the global list
+				List<String> blockedAnnotations = new ArrayList<>(this.blockedAnnotations);
+				// Now add any storage class specific blocks to the new list
+				jsonNode = storageProviderConfigurationNode.get("blockedAnnotations");
+				if (jsonNode != null) {
+					for (Iterator<JsonNode> blockedAnnotationName = jsonNode.elements(); blockedAnnotationName.hasNext(); ) {
+						JsonNode nameNode = blockedAnnotationName.next();
+						if(!blockedAnnotations.contains(ANNOTATION_BASE + nameNode.asText())) {
+							blockedAnnotations.add(ANNOTATION_BASE + nameNode.asText());
+						}
+					}
+				}
+				provider.setBlockedAnnotations(blockedAnnotations);
+
+
 				String providerName = storageProviderConfigurationNode.get("managementProvider").asText();
 				switch (providerName.toUpperCase()) {
-					case "ZfsOverNfs":
+					case "NFS":
 						JsonNode pName = cfgNode.get("provider");
 						String s = pName.asText();
 						if (s.equals("zfs")) {
@@ -87,6 +119,8 @@ public class StorageControllerConfiguration {
 							}
 						}
 						break;
+					default:
+						throw new RuntimeException("Unknown storage management provider specified for storage class '" + storageClass + "': " + providerName);
 				}
 				providers.put(provider.getStorageClass(), provider);
 			}
@@ -113,5 +147,14 @@ public class StorageControllerConfiguration {
 
 	public void setDefaultStorageClass(String defaultStorageClass) {
 		this.defaultStorageClass = defaultStorageClass;
+	}
+
+	private List<String> blockedAnnotations;
+	public List<String> getBlockedAnnotations() {
+		return blockedAnnotations;
+	}
+
+	public void setBlockedAnnotations(List<String> blockedAnnotations) {
+		this.blockedAnnotations = blockedAnnotations;
 	}
 }

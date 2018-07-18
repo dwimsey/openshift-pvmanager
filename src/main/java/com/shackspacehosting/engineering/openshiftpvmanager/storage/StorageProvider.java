@@ -3,6 +3,7 @@ package com.shackspacehosting.engineering.openshiftpvmanager.storage;
 import com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.IStorageManagementProvider;
 import com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.NfsVolumeProperties;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -65,5 +66,13 @@ public class StorageProvider {
 	}
 	public String getPvNameFormat() {
 		return pvNamePrefix;
+	}
+
+	List<String> blockedAnnotations = null;
+ 	public List<String> getBlockedAnnotations() {
+ 		return blockedAnnotations;
+	}
+	public void setBlockedAnnotations(List<String> blockedAnnotations) {
+		this.blockedAnnotations = blockedAnnotations;
 	}
 }
