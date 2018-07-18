@@ -520,8 +520,10 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 							if(pvAnnotations != null) {
 
 								if(!pvAnnotations.containsKey(ANNOTATION_PVMANAGER_RELEASED_TIMESTAMP)) {
+									Long releasedTimestamp = OffsetDateTime.now().toEpochSecond();
+									LOG.info("Marking released persistent volume with timestamp: " + pvcn.getName() + releasedTimestamp.toString());
 									// If there isn't a released timestamp already, add one.  This way we only add a timestamp, not modify an existing
-									String patchJson = "{\"op\": \"add\", \"path\": \"/metadata/annotations/" + ANNOTATION_PVMANAGER_RELEASED_TIMESTAMP.replace("/", "~1") + "\", \"value\": \"" + OffsetDateTime.now().toEpochSecond() + "\"}";
+									String patchJson = "{\"op\": \"add\", \"path\": \"/metadata/annotations/" + ANNOTATION_PVMANAGER_RELEASED_TIMESTAMP.replace("/", "~1") + "\", \"value\": \"" + releasedTimestamp.toString() + "\"}";
 									ArrayList<JsonObject> arr = new ArrayList<>();
 									arr.add(((JsonElement) (new Gson()).fromJson(patchJson, JsonElement.class)).getAsJsonObject());
 									api.patchPersistentVolume(pvcn.getName(), arr, null);
