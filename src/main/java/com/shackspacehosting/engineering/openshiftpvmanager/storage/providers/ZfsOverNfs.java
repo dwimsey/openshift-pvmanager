@@ -347,6 +347,18 @@ public class ZfsOverNfs implements IStorageManagementProvider, AutoCloseable {
 					break;
 			}
 		}
+		String setUid = annotations.get(ANNOTATION_SETUID);
+		if(setUid != null) {
+			switch(setUid.toLowerCase()) {
+				case "on":
+				case "off":
+					extraArgs = extraArgs + " -o setuid=" + setUid.toLowerCase();
+					break;
+				default:
+					LOG.warn("Unexpected " + ANNOTATION_SETUID + " annotation value: " + setUid);
+					break;
+			}
+		}
 		String logMode = annotations.get(ANNOTATION_LOGBIAS);
 		if(logMode != null) {
 			switch(logMode.toLowerCase()) {

@@ -55,6 +55,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 	final public static String ANNOTATION_COMPRESSION_MODE = ANNOTATION_BASE + "compression";
 	final public static String ANNOTATION_ATIME = ANNOTATION_BASE + "atime";
 	final public static String ANNOTATION_EXEC = ANNOTATION_BASE + "exec";
+	final public static String ANNOTATION_SETUID = ANNOTATION_BASE + "setuid";
 	final public static String ANNOTATION_RECLAIM_POLICY = ANNOTATION_BASE + "reclaim-policy";
 	final public static String ANNOTATION_PVMANAGER_RECLAIM_POLICY = "pvmanager:reclaim-policy";
 	final public static String ANNOTATION_RECLAIM_POLICY_RECYCLE = "Recycle";
