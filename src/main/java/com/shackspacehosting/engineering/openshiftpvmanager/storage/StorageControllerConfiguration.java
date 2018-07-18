@@ -3,7 +3,6 @@ package com.shackspacehosting.engineering.openshiftpvmanager.storage;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.shackspacehosting.engineering.openshiftpvmanager.ModularizedStorageController;
 import com.shackspacehosting.engineering.openshiftpvmanager.kubernetes.ObjectNameMapper;
 import com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.ZfsOverNfs;
 import org.slf4j.Logger;
@@ -20,7 +19,7 @@ import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManage
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class StorageControllerConfiguration {
-	private static final Logger LOG = LoggerFactory.getLogger(ModularizedStorageController.class);
+	private static final Logger LOG = LoggerFactory.getLogger(StorageControllerConfiguration.class);
 
 	private static ObjectMapper mapper = ObjectNameMapper.getYamlObjectMapper();
 
