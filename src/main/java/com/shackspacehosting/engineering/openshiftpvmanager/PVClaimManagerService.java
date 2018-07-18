@@ -1,6 +1,9 @@
 package com.shackspacehosting.engineering.openshiftpvmanager;
 
 import com.google.common.reflect.TypeToken;
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.shackspacehosting.engineering.openshiftpvmanager.kubernetes.ObjectNameMapper;
 import com.shackspacehosting.engineering.openshiftpvmanager.storage.StorageControllerConfiguration;
 import com.shackspacehosting.engineering.openshiftpvmanager.storage.StorageProvider;
@@ -28,6 +31,7 @@ import java.io.InterruptedIOException;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -79,6 +83,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 	final public static String ANNOTATION_PVMANAGER_PVCNAMESPACE = ANNOTATION_BASE + "pvc-namespace";
 	final public static String ANNOTATION_PVMANAGER_PVCNAME = ANNOTATION_BASE + "pvc-name";
 	final public static String ANNOTATION_PVMANAGER_PVTAG = "PVMANAGER-PV-TAG";
+	final public static String ANNOTATION_PVMANAGER_RELEASED_TIMESTAMP = ANNOTATION_BASE + "released-at";
 
 	@Value("${kubernetes.service.scheme:https}")
 	private String kubernetesServiceScheme;
@@ -306,7 +311,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 									continue;
 								}
 
-								pvQueue.add(new PVChangeNotification(metadata.getName(), claim.getKind(), item.type, status.getPhase(), spec.getAccessModes(), metadata.getAnnotations(), metadata.getLabels(), new NfsVolumeProperties(spec.getNfs()), spec.getPersistentVolumeReclaimPolicy()));
+								pvQueue.add(new PVChangeNotification(metadata.getName(), claim.getKind(), item.type, status.getPhase(), status.getMessage(), status.getReason(), spec.getAccessModes(), metadata.getAnnotations(), metadata.getLabels(), new NfsVolumeProperties(spec.getNfs()), null));
 							}
 
 						}
@@ -485,20 +490,47 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 		} else {
 			switch (pvcn.getPvState()) {
 				case "Failed":
-					LOG.error("State change for failed PV (" + pvcn.getName() + "): ");
+					LOG.error("State change for failed PV (" + pvcn.getName() + "): " + pvcn.getPvStateMessage());
 				case "Released":
+					StorageProvider storageProvider = storageControllerConfiguration.getStorageProviders().get(getStorageClassFromAnnotations(annotations));
+
+					// Does the PV have a reclaim policy set
+					String reclaimPolicy = annotations.get(ANNOTATION_RECLAIM_POLICY);
+					if(reclaimPolicy == null) {
+						// none specified, use the default for this provider.
+						reclaimPolicy = storageProvider.getReclaimPolicy();
+					}
+
 					// recycle is not supported because there are too many annotations that are not compared
 					// so just delete this and we'll let it create a new one (since this is fast with zfs) when we
 					// need it
-					if(ANNOTATION_RECLAIM_POLICY_RECYCLE.equalsIgnoreCase(pvcn.getReclaimPolicy())) {
-						deletePersistentVolume(client, pvcn); // Really we shouldn't do this for this reclaim policy, the pv is supposed to be reused, but we're doing to delete it anyway because ZFS recreates filesystems instantantly and recycling is hard with all the options available0
-					} else if(ANNOTATION_RECLAIM_POLICY_RETAIN.equalsIgnoreCase(pvcn.getReclaimPolicy())) {
+					if(ANNOTATION_RECLAIM_POLICY_RECYCLE.equalsIgnoreCase(reclaimPolicy)) {
+						// Really we shouldn't do this for this reclaim policy, the pv is supposed to be reused, but we're doing to delete it
+						// anyway because ZFS recreates filesystems instantantly and recycling is hard with all the options available
+						deletePersistentVolume(client, pvcn);
+						storageProvider.removePersistentVolume(annotations);
+					} else if(ANNOTATION_RECLAIM_POLICY_RETAIN.equalsIgnoreCase(reclaimPolicy)) {
 						// this allows us to have some sort of after-the-fact cleanup to help deal with volumes of critical data
 						// another process will deal with these items later
-					} else if(ANNOTATION_RECLAIM_POLICY_DELETE.equalsIgnoreCase(pvcn.getReclaimPolicy())) {
+						// @TODO Add a timestamp to these persistent volumes so they can be scavanged after some period of time
+						CoreV1Api api = new CoreV1Api(client);
+						V1PersistentVolume persistentVolume = api.readPersistentVolume(pvcn.getName(), null, Boolean.TRUE, Boolean.FALSE);
+						if(persistentVolume != null) {
+							Map<String, String> pvAnnotations = persistentVolume.getMetadata().getAnnotations();
+							if(pvAnnotations != null) {
+
+								String patchJson = "{\"op\": \"add\", \"path\": \"/metadata/annotations/" + ANNOTATION_PVMANAGER_RELEASED_TIMESTAMP.replace("/", "~1") + "\", \"value\": " + String.valueOf(OffsetDateTime.now().toEpochSecond()) + "}";
+								ArrayList<JsonObject> arr = new ArrayList<>();
+								arr.add(((JsonElement)(new Gson()).fromJson(patchJson, JsonElement.class)).getAsJsonObject());
+								api.patchPersistentVolume(pvcn.getName(), arr, null);
+							}
+						}
+					} else if(ANNOTATION_RECLAIM_POLICY_DELETE.equalsIgnoreCase(reclaimPolicy)) {
 						// do nothing here, deletion is coming soon enough when kubernetes calls for the deletion of the PersistentVolume itself
+						deletePersistentVolume(client, pvcn);
+						storageProvider.removePersistentVolume(annotations);
 					} else {
-						LOG.warn("Released PV unexpected reclaim policy (" + pvcn.getName() + "): " + pvcn.getReclaimPolicy());
+						LOG.warn("Released PV unexpected reclaim policy (" + pvcn.getName() + "): " + reclaimPolicy);
 					}
 					break;
 				case "Bound":
@@ -564,7 +596,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 		removeInternalAnnotations(annotations);
 		removeBlockedAnnotations(annotations);
 
-		final String requestedStorageClass = getStorageClassFromAnnotations(pvc.getAnnotations());
+		final String requestedStorageClass = getStorageClassFromAnnotations(annotations);
 		final StorageProvider provider = storageControllerConfiguration.getStorageProviders().get(requestedStorageClass);
 
 		String cloneNfsHost = null;
@@ -607,7 +639,6 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 
 		annotations.put(ANNOTATION_MANAGED_BY, ANNOTATION_STORAGE_PROVISIONER_NAME);
 		annotations.put(ANNOTATION_VOLUME_UUID, uuid.toString());
-		String reclaimPolicy = provider.getReclaimPolicy();
 		String pvName = "";
 		NfsVolumeProperties persistentVolumeProperties = null;
 
@@ -618,17 +649,6 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 
 			persistentVolumeProperties = provider.createPersistentVolume(annotations, uuid, Long.valueOf(requestedStorageInBytes.toPlainString()));
 
-			if(annotations.containsKey(ANNOTATION_RECLAIM_POLICY)) {
-				switch(reclaimPolicy.toLowerCase()) {
-					case "delete":
-					case "retain":
-					case "recycle":
-						break;
-					default:
-						LOG.warn("Unexpected " + ANNOTATION_RECLAIM_POLICY + " annotation value: " + reclaimPolicy);
-						break;
-				}
-			}
 		} finally {
 			annotations.remove(ANNOTATION_PVMANAGER_PVTAG);
 			annotations.remove(ANNOTATION_PVMANAGER_PVREF);
@@ -652,7 +672,11 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 		nfsSource.setReadOnly(persistentVolumeProperties.isReadOnly());
 
 		spec.setAccessModes(pvc.accessModes);
-		spec.setPersistentVolumeReclaimPolicy(reclaimPolicy);
+		// Because pvmanager does not plugin to Kubernetes like the existing persistent volume engines, only the 'Retain'
+		// reclaimPolicy is set.  pvmanager emulates the 'Delete' policy be deleting release persistent volumes itself.
+		// The 'Recycle' policy 
+
+		spec.setPersistentVolumeReclaimPolicy("Retain");
 		spec.setCapacity(capacity);
 		spec.setNfs(nfsSource);
 

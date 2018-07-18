@@ -12,15 +12,19 @@ public class PVChangeNotification {
 	final private String kind;
 	final private String changeType;
 	final private String pvState;
+	final private String pvStateMessage;
+	final private String pvStateReason;
 	final private List<String> accessModes;
 	final private Map<String, String> annotations;
 	final private Map<String, String> labels;
 	final private NfsVolumeProperties nfsVolumeProperties;
 	final private String reclaimPolicy;
 
-	public PVChangeNotification(String name, String kind, String changeType, String pvState, List<String> accessModes, Map<String, String> annotations, Map<String, String> labels, NfsVolumeProperties nfsVolumeProperties, String reclaimPolicy) {
+	public PVChangeNotification(String name, String kind, String changeType, String pvState, String pvStateMessage, String pvStateReason, List<String> accessModes, Map<String, String> annotations, Map<String, String> labels, NfsVolumeProperties nfsVolumeProperties, String reclaimPolicy) {
 		this.changeType = changeType;
 		this.pvState = pvState;
+		this.pvStateMessage = pvStateMessage;
+		this.pvStateReason = pvStateReason;
 		this.name = name;
 		this.kind = kind;
 		this.accessModes = accessModes;
@@ -69,6 +73,14 @@ public class PVChangeNotification {
 
 	public String getPvState() {
 		return pvState;
+	}
+
+	public String getPvStateMessage() {
+		return pvStateMessage;
+	}
+
+	public String getPvStateReason() {
+		return pvStateReason;
 	}
 
 	public String getName() {
