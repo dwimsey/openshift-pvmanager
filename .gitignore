@@ -13,3 +13,5 @@ hs_err_pid*
 *.log
 !*.logr*
 *.versionsBackup
+application-default.properties
+config
