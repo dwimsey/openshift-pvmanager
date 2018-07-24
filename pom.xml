@@ -14,12 +14,12 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>1.5.7.RELEASE</version>
+		<version>1.5.9.RELEASE</version>
 		<relativePath/>
 	</parent>
 
 	<properties>
-		<ignite.version>2.5.0</ignite.version>
+		<ignite.version>2.6.0</ignite.version>
 		<skipTests>true</skipTests>
 
 
@@ -193,7 +193,7 @@
 						</goals>
 						<configuration>
 							<executable>true</executable>
-							<mainClass>com.shackspacehosting.engineering.openshiftpvmanager.OpenshiftPVManagerApplication</mainClass>
+							<mainClass>com.shackspacehosting.engineering.pvmanager.OpenshiftPVManagerApplication</mainClass>
 						</configuration>
 					</execution>
 				</executions>
