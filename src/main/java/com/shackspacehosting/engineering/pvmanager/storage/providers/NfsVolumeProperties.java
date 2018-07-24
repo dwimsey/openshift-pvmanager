@@ -1,4 +1,4 @@
-package com.shackspacehosting.engineering.openshiftpvmanager.storage.providers;
+package com.shackspacehosting.engineering.pvmanager.storage.providers;
 
 import io.kubernetes.client.models.V1NFSVolumeSource;
 

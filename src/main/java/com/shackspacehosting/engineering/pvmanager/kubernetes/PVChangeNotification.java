@@ -1,7 +1,7 @@
-package com.shackspacehosting.engineering.openshiftpvmanager;
+package com.shackspacehosting.engineering.pvmanager.kubernetes;
 
 
-import com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.NfsVolumeProperties;
+import com.shackspacehosting.engineering.pvmanager.storage.providers.NfsVolumeProperties;
 
 import java.util.List;
 import java.util.Map;

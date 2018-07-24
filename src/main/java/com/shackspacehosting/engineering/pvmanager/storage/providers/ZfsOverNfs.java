@@ -1,8 +1,8 @@
-package com.shackspacehosting.engineering.openshiftpvmanager.storage.providers;
+package com.shackspacehosting.engineering.pvmanager.storage.providers;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.shackspacehosting.engineering.openshiftpvmanager.SSHExecWrapper;
-import com.shackspacehosting.engineering.openshiftpvmanager.storage.StorageProvider;
+import com.shackspacehosting.engineering.pvmanager.SSHExecWrapper;
+import com.shackspacehosting.engineering.pvmanager.storage.StorageProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,7 +13,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.UUID;
 
-import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.*;
+import static com.shackspacehosting.engineering.pvmanager.kubernetes.PVClaimManagerService.*;
 
 public class ZfsOverNfs implements IStorageManagementProvider, AutoCloseable {
 	private static final Logger LOG = LoggerFactory.getLogger(ZfsOverNfs.class);

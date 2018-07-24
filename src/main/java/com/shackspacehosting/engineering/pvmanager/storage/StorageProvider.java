@@ -1,13 +1,13 @@
-package com.shackspacehosting.engineering.openshiftpvmanager.storage;
+package com.shackspacehosting.engineering.pvmanager.storage;
 
-import com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.IStorageManagementProvider;
-import com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.NfsVolumeProperties;
+import com.shackspacehosting.engineering.pvmanager.storage.providers.IStorageManagementProvider;
+import com.shackspacehosting.engineering.pvmanager.storage.providers.NfsVolumeProperties;
 
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.*;
+import static com.shackspacehosting.engineering.pvmanager.kubernetes.PVClaimManagerService.*;
 
 public class StorageProvider {
 	String storageClass;

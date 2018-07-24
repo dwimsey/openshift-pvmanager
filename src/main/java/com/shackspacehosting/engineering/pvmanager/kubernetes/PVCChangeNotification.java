@@ -1,11 +1,10 @@
-package com.shackspacehosting.engineering.openshiftpvmanager;
+package com.shackspacehosting.engineering.pvmanager.kubernetes;
 
 //import com.openshift.restclient.model.volume.IPersistentVolumeClaim;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public class PVCChangeNotification {
 

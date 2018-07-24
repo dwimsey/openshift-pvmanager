@@ -1,4 +1,4 @@
-package com.shackspacehosting.engineering.openshiftpvmanager.kubernetes;
+package com.shackspacehosting.engineering.pvmanager.kubernetes;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -6,7 +6,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import java.util.HashMap;
 import java.util.Map;
 
-import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.*;
+import static com.shackspacehosting.engineering.pvmanager.kubernetes.PVClaimManagerService.*;
 
 public class ObjectNameMapper {
 	static private ObjectMapper yamlObjectMapper = null;

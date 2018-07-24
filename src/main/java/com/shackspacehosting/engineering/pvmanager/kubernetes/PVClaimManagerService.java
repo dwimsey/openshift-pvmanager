@@ -1,15 +1,13 @@
-package com.shackspacehosting.engineering.openshiftpvmanager;
+package com.shackspacehosting.engineering.pvmanager.kubernetes;
 
 import com.google.common.reflect.TypeToken;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.shackspacehosting.engineering.openshiftpvmanager.kubernetes.ObjectNameMapper;
-import com.shackspacehosting.engineering.openshiftpvmanager.storage.StorageControllerConfiguration;
-import com.shackspacehosting.engineering.openshiftpvmanager.storage.StorageProvider;
-import com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.NfsVolumeProperties;
+import com.shackspacehosting.engineering.pvmanager.storage.StorageControllerConfiguration;
+import com.shackspacehosting.engineering.pvmanager.storage.StorageProvider;
+import com.shackspacehosting.engineering.pvmanager.storage.providers.NfsVolumeProperties;
 import io.kubernetes.client.ApiClient;
-import io.kubernetes.client.ApiException;
 import io.kubernetes.client.apis.CoreV1Api;
 import io.kubernetes.client.custom.Quantity;
 import io.kubernetes.client.models.*;
@@ -38,9 +36,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.ZfsOverNfs.ANNOTATION_PVMANAGER_PVREF;
-import static com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.ZfsOverNfs.ANNOTATION_VOLUME_HOST;
-import static com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.ZfsOverNfs.ANNOTATION_VOLUME_PATH;
+import static com.shackspacehosting.engineering.pvmanager.storage.providers.ZfsOverNfs.ANNOTATION_PVMANAGER_PVREF;
+import static com.shackspacehosting.engineering.pvmanager.storage.providers.ZfsOverNfs.ANNOTATION_VOLUME_HOST;
+import static com.shackspacehosting.engineering.pvmanager.storage.providers.ZfsOverNfs.ANNOTATION_VOLUME_PATH;
 import static io.kubernetes.client.custom.Quantity.Format.BINARY_SI;
 
 @Component
@@ -491,6 +489,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 			switch (pvcn.getPvState()) {
 				case "Failed":
 					LOG.error("State change for failed PV (" + pvcn.getName() + "): " + pvcn.getPvStateMessage());
+					break;
 				case "Released":
 					StorageProvider storageProvider = storageControllerConfiguration.getStorageProviders().get(getStorageClassFromAnnotations(annotations));
 
@@ -521,7 +520,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 
 								if(!pvAnnotations.containsKey(ANNOTATION_PVMANAGER_RELEASED_TIMESTAMP)) {
 									Long releasedTimestamp = OffsetDateTime.now().toEpochSecond();
-									LOG.info("Marking released persistent volume with timestamp: " + pvcn.getName() + releasedTimestamp.toString());
+									LOG.info("Marking released persistent volume with timestamp: " + pvcn.getName() + ": " + releasedTimestamp.toString());
 									// If there isn't a released timestamp already, add one.  This way we only add a timestamp, not modify an existing
 									String patchJson = "{\"op\": \"add\", \"path\": \"/metadata/annotations/" + ANNOTATION_PVMANAGER_RELEASED_TIMESTAMP.replace("/", "~1") + "\", \"value\": \"" + releasedTimestamp.toString() + "\"}";
 									ArrayList<JsonObject> arr = new ArrayList<>();
@@ -648,7 +647,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 		NfsVolumeProperties persistentVolumeProperties = null;
 
 		try {
-			annotations.put(ANNOTATION_PVMANAGER_PVTAG, uuid.toString().substring(0,7));
+			annotations.put(ANNOTATION_PVMANAGER_PVTAG, uuid.toString().substring(0,8));
 			pvName = replaceTokensInString(annotations, provider.getPvNameFormat());
 			annotations.put(ANNOTATION_PVMANAGER_PVREF, pvName);
 

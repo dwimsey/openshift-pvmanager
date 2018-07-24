@@ -1,10 +1,10 @@
-package com.shackspacehosting.engineering.openshiftpvmanager.storage;
+package com.shackspacehosting.engineering.pvmanager.storage;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.shackspacehosting.engineering.openshiftpvmanager.kubernetes.ObjectNameMapper;
-import com.shackspacehosting.engineering.openshiftpvmanager.storage.providers.ZfsOverNfs;
+import com.shackspacehosting.engineering.pvmanager.kubernetes.ObjectNameMapper;
+import com.shackspacehosting.engineering.pvmanager.storage.providers.ZfsOverNfs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,10 +12,10 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
-import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_BASE;
-import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_COMPRESSION_MODE;
-import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_RECLAIM_POLICY;
-import static com.shackspacehosting.engineering.openshiftpvmanager.PVClaimManagerService.ANNOTATION_RECLAIM_POLICY_DEFAULT;
+import static com.shackspacehosting.engineering.pvmanager.kubernetes.PVClaimManagerService.ANNOTATION_BASE;
+import static com.shackspacehosting.engineering.pvmanager.kubernetes.PVClaimManagerService.ANNOTATION_COMPRESSION_MODE;
+import static com.shackspacehosting.engineering.pvmanager.kubernetes.PVClaimManagerService.ANNOTATION_RECLAIM_POLICY;
+import static com.shackspacehosting.engineering.pvmanager.kubernetes.PVClaimManagerService.ANNOTATION_RECLAIM_POLICY_DEFAULT;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class StorageControllerConfiguration {
