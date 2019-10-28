@@ -12,11 +12,11 @@ jobs:
     name: Gitflow
     runs-on: ubuntu-16.04
     steps:
-    - uses: Logerfo/gitflow-action@0.0.3
+    - uses: dwimsey/gitflow-action@test
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }} # The `GITHUB_TOKEN` secret.
-        release: somethingelse # The `release` branch.
-        dev: master # The `dev` branch.
+        release: release # The `release` branch.
+        dev: feature/.* # The `dev` branch.
         master: release # The `master` branch.
         label: gitflow # The pull request label.
         auto-merge: true # If `true`, will try to automatically merge the pull requests.
