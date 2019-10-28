@@ -2,6 +2,7 @@ name: Gitflow
 on:
   # To create pull requests.
   push:
+  pull_request_review_comment:
   # To merge pull requests if not possible during the push run. Remove if `auto-merge` is `false`.
   pull_request_review:
   check_run:
@@ -14,7 +15,7 @@ jobs:
     steps:
     - uses: dwimsey/gitflow-action@test
       with:
-        github-token: ${{ secrets.GITHUB_TOKEN }} # The `GITHUB_TOKEN` secret.
+        github-token: ${{ secrets.GITHUB_TOKEN }}
         release: release # The `release` branch.
         dev: feature/.* # The `dev` branch.
         master: master # The `master` branch.
