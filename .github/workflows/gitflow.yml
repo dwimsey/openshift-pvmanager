@@ -1,0 +1,22 @@
+name: Gitflow
+on:
+  # To create pull requests.
+  push:
+  # To merge pull requests if not possible during the push run. Remove if `auto-merge` is `false`.
+  pull_request_review:
+  check_run:
+    types: [completed]
+
+jobs:
+  build:
+    name: Gitflow
+    runs-on: ubuntu-16.04
+    steps:
+    - uses: Logerfo/gitflow-action@0.0.3
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }} # The `GITHUB_TOKEN` secret.
+        release: somethingelse # The `release` branch.
+        dev: master # The `dev` branch.
+        master: release # The `master` branch.
+        label: gitflow # The pull request label.
+        auto-merge: true # If `true`, will try to automatically merge the pull requests.

@@ -23,9 +23,9 @@
 		<skipTests>true</skipTests>
 
 
-		<docker.image.skip>true</docker.image.skip>
-		<docker.push.skip>true</docker.push.skip>
-		<docker.push.versiontag.skip>true</docker.push.versiontag.skip>
+		<docker.image.skip>false</docker.image.skip>
+		<docker.push.skip>false</docker.push.skip>
+		<docker.push.versiontag.skip>false</docker.push.versiontag.skip>
 		<docker.registry.host>docker.io</docker.registry.host>
 		<docker.registry.namespace>dwimsey</docker.registry.namespace>
 		<docker.latest.tag>latest</docker.latest.tag>
