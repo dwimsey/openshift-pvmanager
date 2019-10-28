@@ -2,7 +2,6 @@ name: Gitflow Auto Merge
 on:
   # To create pull requests.
   push:
-
   pull_request_review_comment:
 
   # To merge pull requests if not possible during the push run. Remove if `auto-merge` is `false`.
