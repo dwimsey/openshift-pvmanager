@@ -12,7 +12,7 @@ jobs:
     name: Gitflow
     runs-on: ubuntu-16.04
     steps:
-    - uses: dwimsey/gitflow-action@master
+    - uses: dwimsey/gitflow-action@test
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }} # The `GITHUB_TOKEN` secret.
         release: release # The `release` branch.
