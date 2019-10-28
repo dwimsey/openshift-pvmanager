@@ -17,6 +17,6 @@ jobs:
         github-token: ${{ secrets.GITHUB_TOKEN }} # The `GITHUB_TOKEN` secret.
         release: release # The `release` branch.
         dev: feature/.* # The `dev` branch.
-        master: release # The `master` branch.
+        master: master # The `master` branch.
         label: gitflow # The pull request label.
         auto-merge: true # If `true`, will try to automatically merge the pull requests.
