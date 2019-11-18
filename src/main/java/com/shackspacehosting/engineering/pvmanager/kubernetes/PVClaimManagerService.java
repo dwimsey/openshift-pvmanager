@@ -352,7 +352,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 							}
 							processPvChange(client, pvChangeNotification);
 						} catch(Exception e) {
-							LOG.error("Unhandled exception in Persistent Volume Notifcation Manager (PVNMW): " + e);
+							LOG.error("Unhandled exception in Persistent Volume Notifcation Manager (PVNMW)", e);
 							client = null;
 							// @TODO Do something with the pvChangeNotification we just dropped on the floor
 						}
@@ -401,7 +401,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 								}
 							}
 						} catch (Exception e) {
-							LOG.error("Exception in something weird internally: " + e);
+							LOG.error("Exception processing pending claim", e);
 						}
 						break;
 					case "lost": // don't do anything with this one atm, openshift won't remap to a new available PV so theres no point in creating one

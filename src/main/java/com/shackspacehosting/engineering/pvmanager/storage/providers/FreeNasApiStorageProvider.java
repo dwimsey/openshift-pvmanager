@@ -21,6 +21,7 @@ import io.kubernetes.client.models.V1NFSVolumeSource;
 import io.kubernetes.client.models.V1PersistentVolumeSpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -36,6 +37,7 @@ import static com.shackspacehosting.engineering.pvmanager.kubernetes.PVClaimMana
 import static com.shackspacehosting.engineering.pvmanager.kubernetes.PVClaimManagerService.ANNOTATION_BASE;
 import static com.shackspacehosting.engineering.pvmanager.kubernetes.PVClaimManagerService.ANNOTATION_BLOCKSIZE;
 import static com.shackspacehosting.engineering.pvmanager.kubernetes.PVClaimManagerService.ANNOTATION_CASESENSITIVE;
+import static com.shackspacehosting.engineering.pvmanager.kubernetes.PVClaimManagerService.ANNOTATION_CHECKSUM_MODE;
 import static com.shackspacehosting.engineering.pvmanager.kubernetes.PVClaimManagerService.ANNOTATION_CLONEREF;
 import static com.shackspacehosting.engineering.pvmanager.kubernetes.PVClaimManagerService.ANNOTATION_CLONESNAPSHOT;
 import static com.shackspacehosting.engineering.pvmanager.kubernetes.PVClaimManagerService.ANNOTATION_COMPRESSION_MODE;
@@ -67,6 +69,7 @@ public class FreeNasApiStorageProvider implements IStorageManagementProvider, Au
 	final public static String ANNOTATION_VOLUME_HOST = ANNOTATION_BASE + "nfs-host";
 	final public static String ANNOTATION_VOLUME_PATH = ANNOTATION_BASE + "nfs-path";
 	final public static String ANNOTATION_VOLUME_EXPORT = ANNOTATION_BASE + "nfs-export";
+	final public static String ANNOTATION_VOLUME_FREENAS_NFSID = ANNOTATION_BASE + "freenas-nfs-id";
 	final public static String ANNOTATION_PROVIDER_TYPE_NAME = "nfs";
 
 	final public static String ANNOTATION_PVMANAGER_PVREF = "pvmanager:pvref";
@@ -182,6 +185,7 @@ public class FreeNasApiStorageProvider implements IStorageManagementProvider, Au
 		public Boolean force_size;
 		public String comment;
 		public ZfsSyncModes sync;
+		public String checksum;
 		public String compression;
 		public Boolean atime;
 		public Boolean exec;
@@ -215,6 +219,7 @@ public class FreeNasApiStorageProvider implements IStorageManagementProvider, Au
 		public String pool;
 		public String mountpoint;
 		public ZfsVolumeType type;
+		public String checksum;
 		public String compression;
 		public String deduplication;
 		public Boolean exec;
@@ -258,8 +263,6 @@ public class FreeNasApiStorageProvider implements IStorageManagementProvider, Au
 	}
 
 	public interface FreeNASAPI {
-		// pool == zfs01, basepath = openshift/persistentvolumes/basic, datasetname = guid from dataset name (final path component of zfs filesystem path)
-		//@RequestLine("GET /api/v1.0/storage/dataset//api/v1.0/storage/dataset/zfs01/openshift/persistentvolumes/basic/")
 		@RequestLine("GET /api/v1.0/storage/dataset/{zfsPool}/{basePath}/{datasetName}")
 		ZfsDatasetProperties getDataset(@Param("zfsPool") String zfsPool, @Param("basePath") String basePath, @Param("datasetName") String datasetName);
 
@@ -281,6 +284,11 @@ public class FreeNasApiStorageProvider implements IStorageManagementProvider, Au
 		@RequestLine("POST /api/v2.0/sharing/nfs")
 		HashMap<String, Object> shareDataset(NfsCreateShareProperties zfsDataset);
 
+		@RequestLine("DELETE /api/v2.0/sharing/nfs/id/{id}")
+		void unshareDataset(@Param("id") String id);
+
+		@RequestLine(value = "DELETE /api/v2.0/pool/dataset/id/{id}", decodeSlash = false )
+		void destroyDataset(@Param("id") String id);
 	}
 	FreeNASAPI apiEndpoint = null;
 
@@ -368,6 +376,7 @@ public class FreeNasApiStorageProvider implements IStorageManagementProvider, Au
 		Feign.Builder feignBuilder = Feign.builder()
 			.encoder(new JacksonEncoder(feignObjectMapper))
 			.decoder(new JacksonDecoder(feignObjectMapper));
+
 
 
 
@@ -512,15 +521,26 @@ public class FreeNasApiStorageProvider implements IStorageManagementProvider, Au
 		return r;
 	}
 
-	NfsCreateShareProperties nfsShareFromCreateApiResponse(Map<String, Object> c) {
+	NfsCreateShareProperties sharePropertiesFromApiResponseObject(Map<String, Object> c) {
 		if(c == null) {
 			return null;
 		}
 
 		NfsCreateShareProperties r = new NfsCreateShareProperties();
 
-		//r.id = (String) c.get("id");
 		Object prop;
+
+		prop = c.get("id");
+		if(prop != null) {
+			if(prop instanceof Long) {
+				r.id = (Long) c.get("id");
+			} else if(prop instanceof Integer) {
+				r.id = Long.valueOf((Integer) c.get("id"));
+			} else {
+				r.id = Long.getLong(prop.toString());
+			}
+		}
+
 		prop = c.get("paths");
 		if(prop != null) {
 			if(prop instanceof List) {
@@ -623,24 +643,6 @@ public class FreeNasApiStorageProvider implements IStorageManagementProvider, Au
 			zfsSnapshotRequest.name = zfsSnapshotName;
 			ZfsSnapshotProperties snapshotProperties = apiEndpoint.createSnapshot(zfsSnapshotRequest);
 
-//			command = (becomeRoot ? "sudo " : "") + "zfs snapshot -o " + ANNOTATION_PVMANAGER_PVREF + "=" +
-//					annotations.get(ANNOTATION_PVMANAGER_PVREF) + " " + zfsFullSnapshotPath;
-//			outputBuffer = new StringBuilder();
-//			cmdReturnValue = sshWrapper.exec(command, outputBuffer);
-//			if (cmdReturnValue != 0) {
-//				LOG.error("zfs snapshot volume failed: exit status: " + cmdReturnValue);
-//				LOG.error(outputBuffer.toString());
-//				return null;
-//			}
-//			outputBuffer = new StringBuilder();
-//			cmdReturnValue = sshWrapper.exec(command, outputBuffer);
-//			if (cmdReturnValue != 0) {
-//				LOG.error("zfs " + ((zfsCloneRef != null) ? "clone" : "create") + " volume failed: exit status: " + cmdReturnValue);
-//				LOG.error(outputBuffer.toString());
-//				return null;
-//			}
-
-
 			ZfsCloneRequest zfsCloneRequest = new ZfsCloneRequest();
 			zfsCloneRequest.name = zfsVolumePath;
 			apiEndpoint.createClone(snapshotProperties.snapshotName, zfsCloneRequest);
@@ -682,24 +684,24 @@ public class FreeNasApiStorageProvider implements IStorageManagementProvider, Au
 			}
 
 
-//			String checksumMode = annotations.get(ANNOTATION_CHECKSUM_MODE);
-//			if(checksumMode != null) {
-//				switch(checksumMode.toLowerCase()) {
-//					case "on":
-//					case "off":
-//					case "fletcher2":
-//					case "fletcher4":
-//					case "sha256":
-//					case "noparity":
-//					case "sha512":
-//					case "skein":
-//						cdsr.checksum = checksumMode.toLowerCase();
-//						break;
-//					default:
-//						LOG.warn("Unexpected " + ANNOTATION_CHECKSUM_MODE + " annotation value: " + checksumMode);
-//						break;
-//				}
-//			}
+			String checksumMode = annotations.get(ANNOTATION_CHECKSUM_MODE);
+			if(checksumMode != null) {
+				switch(checksumMode.toLowerCase()) {
+					case "on":
+					case "off":
+					case "fletcher2":
+					case "fletcher4":
+					case "sha256":
+					case "noparity":
+					case "sha512":
+					case "skein":
+						cdsr.checksum = checksumMode.toLowerCase();
+						break;
+					default:
+						LOG.warn("Unexpected " + ANNOTATION_CHECKSUM_MODE + " annotation value: " + checksumMode);
+						break;
+				}
+			}
 
 			String compression = annotations.get(ANNOTATION_COMPRESSION_MODE);
 			if(compression != null) {
@@ -862,7 +864,12 @@ public class FreeNasApiStorageProvider implements IStorageManagementProvider, Au
 
 		}
 
-		NfsCreateShareProperties shareProperties = shareDatasetFromApiResponse(datasetProperties);
+		NfsCreateShareProperties shareProperties = shareDataset(datasetProperties);
+
+		// Write the id from freenas back into the PVC so it can be referenced later
+		if(shareProperties.id != null) {
+			annotations.put(ANNOTATION_VOLUME_FREENAS_NFSID, shareProperties.id.toString());
+		}
 
 		if(unixMode != null) {
 			// @TODO Implement unix mode setting here if not block mode
@@ -886,7 +893,7 @@ public class FreeNasApiStorageProvider implements IStorageManagementProvider, Au
 		return spec;
 	}
 
-	private NfsCreateShareProperties shareDatasetFromApiResponse(ZfsDatasetProperties datasetProperties) {
+	private NfsCreateShareProperties shareDataset(ZfsDatasetProperties datasetProperties) {
 		// Now we need to share the new data set
 		NfsCreateShareProperties ncsr = new NfsCreateShareProperties();
 		ncsr.ro = datasetProperties.readonly;
@@ -895,8 +902,7 @@ public class FreeNasApiStorageProvider implements IStorageManagementProvider, Au
 		paths[0] = datasetProperties.mountpoint;
 		ncsr.paths = paths;
 
-		return nfsShareFromCreateApiResponse(apiEndpoint.shareDataset(ncsr));
-
+		return sharePropertiesFromApiResponseObject(apiEndpoint.shareDataset(ncsr));
 	}
 
 	@Override
@@ -909,31 +915,31 @@ public class FreeNasApiStorageProvider implements IStorageManagementProvider, Au
 		if(uuid == null) {
 			throw new IllegalArgumentException(ANNOTATION_VOLUME_UUID + " annotation not found, " + ANNOTATION_VOLUME_UUID + " is required to delete volumes");
 		}
-		// Convert it to a UUID object and then u.toString() to ensure theres no funny business being crafted here to break out of the shell
-		UUID u = UUID.fromString(uuid);
-		String command;
-		StringBuilder outputBuffer;
-		int xs;
+		String datasetId = annotations.get(ANNOTATION_VOLUME_PATH);
+		String shareId = annotations.get(ANNOTATION_VOLUME_FREENAS_NFSID);
 
-		command = (becomeRoot ? "sudo " : "") + "zfs destroy " + Paths.get(zfsRootPath, u.toString()).toString();
+		if(shareId != null) {
+			// Remove nfs share
+			try {
+				apiEndpoint.unshareDataset(shareId);
+			} catch(Exception e) {
+				LOG.error("Could not remove share for " + datasetId);
+			}
+		}
 
-		outputBuffer = new StringBuilder();
-//		xs = sshWrapper.exec(command, outputBuffer);
-//		if (xs != 0) {
-//			LOG.error("zfs destroy volume failed: exit status: " + xs + ": filesytem orphan: " + Paths.get(zfsRootPath, u.toString()).toString());
-//			LOG.error(outputBuffer.toString());
-//		}
-//
-//		String sourceSnapshot = annotations.get(ANNOTATION_CLONESNAPSHOT);
-//		if(sourceSnapshot != null && !sourceSnapshot.isEmpty()) {
-//			if(!sourceSnapshot.startsWith(getZfsRootPath())) {
-//				LOG.error("Could not destroy snapshot, snapshot does not start with zfsRootPath: " + getZfsRootPath() + " != " + sourceSnapshot);
-//				return;
-//			}
-//			if(!sourceSnapshot.contains("@")) {
-//				LOG.error("Could not destroy snapshot, snapshot does not start with zfsRootPath: " + getZfsRootPath() + " != " + sourceSnapshot);
-//				return;
-//			}
+		apiEndpoint.destroyDataset(datasetId);
+
+		// @TODO Handle snapshot deletion
+		String sourceSnapshot = annotations.get(ANNOTATION_CLONESNAPSHOT);
+		if(sourceSnapshot != null && !sourceSnapshot.isEmpty()) {
+			if(!sourceSnapshot.startsWith(getZfsRootPath())) {
+				LOG.error("Could not destroy snapshot, snapshot does not start with zfsRootPath: " + getZfsRootPath() + " != " + sourceSnapshot);
+				return;
+			}
+			if(!sourceSnapshot.contains("@")) {
+				LOG.error("Could not destroy snapshot, snapshot does not start with zfsRootPath: " + getZfsRootPath() + " != " + sourceSnapshot);
+				return;
+			}
 //			command = (becomeRoot ? "sudo " : "") + "zfs destroy " + sourceSnapshot;
 //
 //			outputBuffer = new StringBuilder();
@@ -942,7 +948,8 @@ public class FreeNasApiStorageProvider implements IStorageManagementProvider, Au
 //				LOG.error("zfs destroy snapshot failed: exit status: " + xs + ": snapshot orphan: " + sourceSnapshot);
 //				LOG.error(outputBuffer.toString());
 //			}
-//		}
+			throw new NotImplementedException();
+		}
 
 	}
 
