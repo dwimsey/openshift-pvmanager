@@ -1,22 +1,32 @@
 package com.shackspacehosting.engineering.pvmanager.storage.providers;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.google.common.base.Strings;
 import com.shackspacehosting.engineering.pvmanager.SSHExecWrapper;
+import com.shackspacehosting.engineering.pvmanager.storage.IStorageManagementProvider;
 import com.shackspacehosting.engineering.pvmanager.storage.StorageProvider;
+import io.kubernetes.client.custom.Quantity;
+import io.kubernetes.client.models.V1NFSVolumeSource;
+import io.kubernetes.client.models.V1PersistentVolumeSpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Paths;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
 import static com.shackspacehosting.engineering.pvmanager.kubernetes.PVClaimManagerService.*;
+import static com.shackspacehosting.engineering.pvmanager.kubernetes.PVClaimManagerService.PvVolumeBlockmode.Block;
+import static com.shackspacehosting.engineering.pvmanager.kubernetes.PVClaimManagerService.PvVolumeBlockmode.Filesystem;
+import static io.kubernetes.client.custom.Quantity.Format.BINARY_SI;
 
-public class ZfsOverNfs implements IStorageManagementProvider, AutoCloseable {
-	private static final Logger LOG = LoggerFactory.getLogger(ZfsOverNfs.class);
+public class ZfsCliStorageProvider implements IStorageManagementProvider, AutoCloseable {
+	private static final Logger LOG = LoggerFactory.getLogger(ZfsCliStorageProvider.class);
 
 	final public static String ANNOTATION_VOLUME_HOST = ANNOTATION_BASE + "nfs-host";
 	final public static String ANNOTATION_VOLUME_PATH = ANNOTATION_BASE + "nfs-path";
@@ -36,9 +46,9 @@ public class ZfsOverNfs implements IStorageManagementProvider, AutoCloseable {
 	final public static String CONFIG_SSH_PRIVATEKEY_FILE = "privateKeyFile";
 	final public static String CONFIG_SSH_PRIVATEKEY = "privateKey";
 	final public static String CONFIG_SSH_TOKEN = "token";
+	final public static String CONFIG_SSH_BECOMEROOT = "becomeRoot";
 	final public static String CONFIG_ZFS = "zfs";
 	final public static String CONFIG_ZFS_ROOTPATH = "rootPath";
-	final public static String CONFIG_ZFS_BECOMEROOT = "becomeRoot";
 	final public static String CONFIG_ZFS_UNIXMODE = "unixMode";
 	final public static String CONFIG_ZFS_QUOTAMODE = "quotaMode";
 	final public static String CONFIG_ZFS_QUOTAMODE_DEFAULT = "QUOTA";
@@ -142,7 +152,7 @@ public class ZfsOverNfs implements IStorageManagementProvider, AutoCloseable {
 		this.zfsRootPath = zfsRootPath;
 	}
 
-	public ZfsOverNfs(StorageProvider provider, JsonNode cfgNode) throws IOException {
+	public ZfsCliStorageProvider(StorageProvider provider, JsonNode cfgNode) throws IOException {
 		this.provider=provider;
 		boolean hasError = false;
 
@@ -197,7 +207,14 @@ public class ZfsOverNfs implements IStorageManagementProvider, AutoCloseable {
 			} else {
 				LOG.info("No SSH token configured, using clear text keys and password-less logins is highly discouraged.");
 			}
-		}
+
+			if(sshCfgNode.has(CONFIG_SSH_BECOMEROOT)) {
+				this.becomeRoot = sshCfgNode.get(CONFIG_SSH_BECOMEROOT).asBoolean(false);
+			} else {
+				this.becomeRoot = false;
+				LOG.warn("No SSH become root configured, assuming false.");
+			}
+			}
 
 		JsonNode zfsCfgNode = cfgNode.get(CONFIG_ZFS);
 		if(zfsCfgNode != null) {
@@ -206,13 +223,6 @@ public class ZfsOverNfs implements IStorageManagementProvider, AutoCloseable {
 			} else {
 				LOG.error("No ZFS root path configured.");
 				hasError = true;
-			}
-
-			if(zfsCfgNode.has(CONFIG_ZFS_BECOMEROOT)) {
-				this.becomeRoot = zfsCfgNode.get(CONFIG_ZFS_BECOMEROOT).asBoolean(false);
-			} else {
-				this.becomeRoot = false;
-				LOG.warn("No ZFS become root configured, assuming false.");
 			}
 
 			if(zfsCfgNode.has(CONFIG_ZFS_QUOTAMODE)) {
@@ -240,12 +250,34 @@ public class ZfsOverNfs implements IStorageManagementProvider, AutoCloseable {
 	}
 
 	final private static DateTimeFormatter snapshotTimestampFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
-	public NfsVolumeProperties createPersistentVolume(Map<String, String> annotations, UUID uuid, long sizeInBytes) throws Exception {
+	public V1PersistentVolumeSpec createPersistentVolume(Map<String, String> annotations, long sizeInBytes) throws Exception {
 		String command;
 		int cmdReturnValue = 0;
 
-		String zfsVolumePath = Paths.get(zfsRootPath, uuid.toString()).toString();
-		String exportPath = Paths.get(nfsRootPath, uuid.toString()).toString();
+		PvVolumeBlockmode volumeMode = PvVolumeBlockmode.Filesystem;
+		String volumeModeString = annotations.get(ANNOTATION_STORAGE_VOLUMEMODE);
+		if(!Strings.isNullOrEmpty(volumeModeString)) {
+			volumeMode = PvVolumeBlockmode.valueOf(volumeModeString);
+		}
+
+		if(volumeMode == Block) {
+			throw new UnsupportedOperationException("Block mode is not currently supported with SSH management protocol and NFS mount protocol.");
+		}
+
+		String mountProtocolString = annotations.get(ANNOTATION_STORAGE_MOUNTPROTOCOL);
+		if(mountProtocolString != null) {
+			if(!"nfs".equalsIgnoreCase(mountProtocolString)) {
+				throw new UnsupportedOperationException(mountProtocolString + " mount protocol is not supported for ZfsCli.");
+			}
+		} else {
+			// If its null we assume NFS since thats all this module supports currently anyway
+			annotations.put(ANNOTATION_STORAGE_MOUNTPROTOCOL, "nfs");
+		}
+
+
+		String volumeUuid = annotations.get(ANNOTATION_VOLUME_UUID);
+		String zfsVolumePath = Paths.get(zfsRootPath, volumeUuid).toString();
+		String exportPath = Paths.get(nfsRootPath, volumeUuid).toString();
 
 		annotations.put(ANNOTATION_VOLUME_HOST, nfsHostname);
 		annotations.put(ANNOTATION_VOLUME_PATH, zfsVolumePath);
@@ -255,18 +287,8 @@ public class ZfsOverNfs implements IStorageManagementProvider, AutoCloseable {
 		String extraArgs = "";
 
 
-		switch(quotaMode) {
-			case IGNORE:
-				break;
-			case QUOTA:
-				extraArgs = " -o quota=" + sizeInBytes;
-				break;
-			case RESERVE:
-				extraArgs = " -o reservation=" + sizeInBytes;
-				break;
-			case BOTH:
-				extraArgs = " -o quota=" + sizeInBytes + " -o reservation=" + sizeInBytes;
-				break;
+		if(volumeMode == Block) {
+			extraArgs += " -V " + sizeInBytes;
 		}
 
 		int maxBlockSize = 1048576; // If
@@ -274,7 +296,7 @@ public class ZfsOverNfs implements IStorageManagementProvider, AutoCloseable {
 		String blockSizeStr = annotations.get(ANNOTATION_BLOCKSIZE);
 		if(blockSizeStr != null) {
 			int blockSize = Integer.valueOf(blockSizeStr);
-			// Make sure the blockSize is between 512 and maxBlockSize bytes and is a power of two
+			// Make sure the recordsize is between 512 and maxBlockSize bytes and is a power of two
 			if(blockSize >= 512 && blockSize <= maxBlockSize && ((blockSize & (blockSize - 1)) == 0)) {
 				extraArgs = extraArgs + " -o recordsize=" + blockSize;
 			}
@@ -323,42 +345,6 @@ public class ZfsOverNfs implements IStorageManagementProvider, AutoCloseable {
 					break;
 			}
 		}
-		String atimeMode = annotations.get(ANNOTATION_ATIME);
-		if(atimeMode != null) {
-			switch(atimeMode.toLowerCase()) {
-				case "on":
-				case "off":
-					extraArgs = extraArgs + " -o atime=" + atimeMode.toLowerCase();
-					break;
-				default:
-					LOG.warn("Unexpected " + ANNOTATION_ATIME + " annotation value: " + atimeMode);
-					break;
-			}
-		}
-		String execMode = annotations.get(ANNOTATION_EXEC);
-		if(execMode != null) {
-			switch(execMode.toLowerCase()) {
-				case "on":
-				case "off":
-					extraArgs = extraArgs + " -o exec=" + execMode.toLowerCase();
-					break;
-				default:
-					LOG.warn("Unexpected " + ANNOTATION_EXEC + " annotation value: " + execMode);
-					break;
-			}
-		}
-		String setUid = annotations.get(ANNOTATION_SETUID);
-		if(setUid != null) {
-			switch(setUid.toLowerCase()) {
-				case "on":
-				case "off":
-					extraArgs = extraArgs + " -o setuid=" + setUid.toLowerCase();
-					break;
-				default:
-					LOG.warn("Unexpected " + ANNOTATION_SETUID + " annotation value: " + setUid);
-					break;
-			}
-		}
 		String logMode = annotations.get(ANNOTATION_LOGBIAS);
 		if(logMode != null) {
 			switch(logMode.toLowerCase()) {
@@ -368,18 +354,6 @@ public class ZfsOverNfs implements IStorageManagementProvider, AutoCloseable {
 					break;
 				default:
 					LOG.warn("Unexpected " + ANNOTATION_LOGBIAS + " annotation value: " + logMode);
-					break;
-			}
-		}
-		String snapMode = annotations.get(ANNOTATION_SNAPDIR);
-		if(snapMode != null) {
-			switch(snapMode.toLowerCase()) {
-				case "hidden":
-				case "visible":
-					extraArgs = extraArgs + " -o snapdir=" + snapMode.toLowerCase();
-					break;
-				default:
-					LOG.warn("Unexpected " + ANNOTATION_SNAPDIR + " annotation value: " + snapMode);
 					break;
 			}
 		}
@@ -410,6 +384,71 @@ public class ZfsOverNfs implements IStorageManagementProvider, AutoCloseable {
 			}
 		}
 
+		if(volumeMode == Filesystem) {
+			switch (quotaMode) {
+				case IGNORE:
+					break;
+				case QUOTA:
+					extraArgs = " -o quota=" + sizeInBytes;
+					break;
+				case RESERVE:
+					extraArgs = " -o reservation=" + sizeInBytes;
+					break;
+				case BOTH:
+					extraArgs = " -o quota=" + sizeInBytes + " -o reservation=" + sizeInBytes;
+					break;
+			}
+
+			String atimeMode = annotations.get(ANNOTATION_ATIME);
+			if (atimeMode != null) {
+				switch (atimeMode.toLowerCase()) {
+					case "on":
+					case "off":
+						extraArgs = extraArgs + " -o atime=" + atimeMode.toLowerCase();
+						break;
+					default:
+						LOG.warn("Unexpected " + ANNOTATION_ATIME + " annotation value: " + atimeMode);
+						break;
+				}
+			}
+			String execMode = annotations.get(ANNOTATION_EXEC);
+			if (execMode != null) {
+				switch (execMode.toLowerCase()) {
+					case "on":
+					case "off":
+						extraArgs = extraArgs + " -o exec=" + execMode.toLowerCase();
+						break;
+					default:
+						LOG.warn("Unexpected " + ANNOTATION_EXEC + " annotation value: " + execMode);
+						break;
+				}
+			}
+			String setUid = annotations.get(ANNOTATION_SETUID);
+			if (setUid != null) {
+				switch (setUid.toLowerCase()) {
+					case "on":
+					case "off":
+						extraArgs = extraArgs + " -o setuid=" + setUid.toLowerCase();
+						break;
+					default:
+						LOG.warn("Unexpected " + ANNOTATION_SETUID + " annotation value: " + setUid);
+						break;
+				}
+			}
+			String snapMode = annotations.get(ANNOTATION_SNAPDIR);
+			if (snapMode != null) {
+				switch (snapMode.toLowerCase()) {
+					case "hidden":
+					case "visible":
+						extraArgs = extraArgs + " -o snapdir=" + snapMode.toLowerCase();
+						break;
+					default:
+						LOG.warn("Unexpected " + ANNOTATION_SNAPDIR + " annotation value: " + snapMode);
+						break;
+				}
+			}
+		}
+
 		// Add user attribute pointing to the name of the PV that was created for it
 		extraArgs = extraArgs + " -o " + ANNOTATION_PVMANAGER_PVREF + "=" +
 				annotations.get(ANNOTATION_PVMANAGER_PVREF);
@@ -417,6 +456,7 @@ public class ZfsOverNfs implements IStorageManagementProvider, AutoCloseable {
 		StringBuilder outputBuffer;
 		String zfsCloneRef = annotations.get(ANNOTATION_CLONEREF);
 		if(zfsCloneRef != null) {
+
 			String[] parts = zfsCloneRef.split(":");
 			if(parts.length != 2) {
 				LOG.error("Could not parse clone reference, expected 2 parts got " + parts.length + ": " + zfsCloneRef);
@@ -473,8 +513,23 @@ public class ZfsOverNfs implements IStorageManagementProvider, AutoCloseable {
 			}
 		}
 
-		// @TODO commented
-		return new NfsVolumeProperties(nfsHostname, exportPath, false, null);
+
+		V1PersistentVolumeSpec spec = new V1PersistentVolumeSpec();
+		// Because pvmanager does not plugin to Kubernetes like the existing persistent volume engines, only the 'Retain'
+		// reclaimPolicy is set.  pvmanager emulates the 'Delete' policy be deleting release persistent volumes itself.
+		spec.setPersistentVolumeReclaimPolicy("Retain");
+
+		Map<String, Quantity> capacity = new HashMap<String, Quantity>();
+		capacity.put("storage", new Quantity(new BigDecimal(sizeInBytes), BINARY_SI));
+		spec.setCapacity(capacity);
+
+		V1NFSVolumeSource nfsSource = new V1NFSVolumeSource();
+		nfsSource.setServer(nfsHostname);
+		nfsSource.setPath(exportPath);
+		nfsSource.setReadOnly(false);
+		spec.setNfs(nfsSource);
+
+		return spec;
 	}
 
 	@Override

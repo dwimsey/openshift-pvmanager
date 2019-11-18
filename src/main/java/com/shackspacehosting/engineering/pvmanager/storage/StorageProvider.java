@@ -1,11 +1,9 @@
 package com.shackspacehosting.engineering.pvmanager.storage;
 
-import com.shackspacehosting.engineering.pvmanager.storage.providers.IStorageManagementProvider;
-import com.shackspacehosting.engineering.pvmanager.storage.providers.NfsVolumeProperties;
+import io.kubernetes.client.models.V1PersistentVolumeSpec;
 
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import static com.shackspacehosting.engineering.pvmanager.kubernetes.PVClaimManagerService.*;
 
@@ -48,8 +46,8 @@ public class StorageProvider {
 	}
 
 
-	public NfsVolumeProperties createPersistentVolume(Map<String, String> annotations, UUID uuid, long sizeInBytes) throws Exception {
-		return managementProvider.createPersistentVolume(annotations, uuid, sizeInBytes);
+	public V1PersistentVolumeSpec createPersistentVolume(Map<String, String> annotations, long sizeInBytes) throws Exception {
+		return managementProvider.createPersistentVolume(annotations, sizeInBytes);
 	}
 
 	public void removePersistentVolume(Map<String, String> annotations) throws Exception {

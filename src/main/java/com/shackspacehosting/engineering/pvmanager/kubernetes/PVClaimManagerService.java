@@ -6,10 +6,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.shackspacehosting.engineering.pvmanager.storage.StorageControllerConfiguration;
 import com.shackspacehosting.engineering.pvmanager.storage.StorageProvider;
-import com.shackspacehosting.engineering.pvmanager.storage.providers.NfsVolumeProperties;
 import io.kubernetes.client.ApiClient;
 import io.kubernetes.client.apis.CoreV1Api;
-import io.kubernetes.client.custom.Quantity;
 import io.kubernetes.client.models.*;
 import io.kubernetes.client.util.Config;
 import io.kubernetes.client.util.Watch;
@@ -23,6 +21,7 @@ import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.InitializingBean;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
@@ -36,10 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static com.shackspacehosting.engineering.pvmanager.storage.providers.ZfsOverNfs.ANNOTATION_PVMANAGER_PVREF;
-import static com.shackspacehosting.engineering.pvmanager.storage.providers.ZfsOverNfs.ANNOTATION_VOLUME_HOST;
-import static com.shackspacehosting.engineering.pvmanager.storage.providers.ZfsOverNfs.ANNOTATION_VOLUME_PATH;
-import static io.kubernetes.client.custom.Quantity.Format.BINARY_SI;
+import static com.shackspacehosting.engineering.pvmanager.storage.providers.ZfsCliStorageProvider.ANNOTATION_PVMANAGER_PVREF;
 
 @Component
 public class PVClaimManagerService implements InitializingBean, DisposableBean {
@@ -77,11 +73,16 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 
 	final public static String ANNOTATION_STORAGE_PROVISIONER = "storage-provisioner";
 	final public static String ANNOTATION_STORAGE_CLASS = "storage-class";
+	final public static String ANNOTATION_STORAGE_VOLUMEMODE = ANNOTATION_BASE + "volume-mode";
+	final public static String ANNOTATION_STORAGE_MOUNTPROTOCOL = ANNOTATION_BASE + "mount-protocol";
 
 	final public static String ANNOTATION_PVMANAGER_PVCNAMESPACE = ANNOTATION_BASE + "pvc-namespace";
 	final public static String ANNOTATION_PVMANAGER_PVCNAME = ANNOTATION_BASE + "pvc-name";
 	final public static String ANNOTATION_PVMANAGER_PVTAG = "PVMANAGER-PV-TAG";
 	final public static String ANNOTATION_PVMANAGER_RELEASED_TIMESTAMP = ANNOTATION_BASE + "released-at";
+
+	@Value("${kubernetes.client.debugging:false}")
+	private Boolean kubernetesClientDebugging;
 
 	@Value("${kubernetes.service.scheme:https}")
 	private String kubernetesServiceScheme;
@@ -202,17 +203,20 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 										if(LOG.isDebugEnabled()) {
 											LOG.debug("Pending PVC (" + metadata.getNamespace() + ":" + metadata.getName() + ") size: " + size.toPlainString() + " -> " + item.type);
 										}
+
+										//metadata.getLabels();
+										//metadata.getUid();
 										String volumeName = metadata.getName();
 										String namespace = metadata.getNamespace();
 										Map<String, String> annotations = metadata.getAnnotations();
+										Map<String, String> labels = metadata.getLabels();
+										Map<String, String> matchedLabels = null;
 										V1LabelSelector selector = spec.getSelector();
-										Map<String, String> labels = null;
 										if(selector != null) {
-											labels = spec.getSelector().getMatchLabels();
+											matchedLabels = spec.getSelector().getMatchLabels();
 										}
 
-										List<String> accessModes = spec.getAccessModes();
-										PVCChangeNotification pvcChangeNotification = new PVCChangeNotification(namespace, volumeName, accessModes, labels, annotations, size, status.getPhase(), item.type, metadata.getUid());
+										PVCChangeNotification pvcChangeNotification = new PVCChangeNotification(namespace, volumeName, spec, labels, annotations, size, status.getPhase(), item.type, metadata.getUid());
 										pvcQueue.add(pvcChangeNotification);
 										break;
 									case "Bound":
@@ -256,6 +260,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 					try {
 						if(client == null) {
 							client = getAuthenticatedApiClient();
+							client.setDebugging(kubernetesClientDebugging == null ? false : kubernetesClientDebugging.booleanValue());
 						}
 						PVCChangeNotification pvcChangeNotification = pvcQueue.poll();
 						while(pvcChangeNotification != null) {
@@ -309,7 +314,7 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 									continue;
 								}
 
-								pvQueue.add(new PVChangeNotification(metadata.getName(), claim.getKind(), item.type, status.getPhase(), status.getMessage(), status.getReason(), spec.getAccessModes(), metadata.getAnnotations(), metadata.getLabels(), new NfsVolumeProperties(spec.getNfs()), null));
+								pvQueue.add(new PVChangeNotification(metadata.getName(), claim.getKind(), item.type, status.getPhase(), status.getMessage(), status.getReason(), spec.getAccessModes(), metadata.getAnnotations(), metadata.getLabels(), spec, null));
 							}
 
 						}
@@ -378,13 +383,23 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 							Map<String, String> annotations = pvcChangeNotification.getAnnotations();
 							if (annotations != null && annotations.containsKey(ANNOTATION_KUBERNETES_STORAGE_PROVISIONER)) {
 								if (annotations.get(ANNOTATION_KUBERNETES_STORAGE_PROVISIONER).equals(ANNOTATION_STORAGE_PROVISIONER_NAME)) {
-									createPVForPVC(client, pvcChangeNotification);
+									StorageProvider storageProvider = storageControllerConfiguration.getStorageProviders().get(getStorageClassFromAnnotations(annotations));
+									if(storageProvider == null) {
+										LOG.error("Add pvc (Failed: no storage class for specified provisioner): ( " + pvcChangeNotification.getVolumeName() + ") " + pvcChangeNotification.getNamespace() + ": " + pvcChangeNotification.getStatus() + " !! " + pvcChangeNotification.getChangeType());
+										throw new NotImplementedException();
+									}
+									processPersistentVolumeClaimCreateRequest(client, pvcChangeNotification);
+								} else {
+									LOG.trace("Add pvc (Ignored by request): ( " + pvcChangeNotification.getVolumeName() + ") " + pvcChangeNotification.getNamespace() + ": " + pvcChangeNotification.getStatus() + " !! " + pvcChangeNotification.getChangeType());
 								}
 							} else {
-								createPVForPVC(client, pvcChangeNotification);
+								StorageProvider storageProvider = storageControllerConfiguration.getStorageProviders().get(getStorageClassFromAnnotations(annotations));
+								if(storageProvider == null) {
+									LOG.trace("Add pvc (Ignored: no storage class): ( " + pvcChangeNotification.getVolumeName() + ") " + pvcChangeNotification.getNamespace() + ": " + pvcChangeNotification.getStatus() + " !! " + pvcChangeNotification.getChangeType());
+								} else {
+									processPersistentVolumeClaimCreateRequest(client, pvcChangeNotification);
+								}
 							}
-//						} catch (JSchException e) {
-//							LOG.error("SSH Exception: {}", e);
 						} catch (Exception e) {
 							LOG.error("Exception in something weird internally: " + e);
 						}
@@ -589,70 +604,115 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 		return requestedStorageClass;
 	}
 
-	private void createPVForPVC(ApiClient client, PVCChangeNotification pvc) throws Exception {
+	/**
+	 * This method processes a PVCChangedNotification event.  The following steps are taken:
+	 * 1. Parse common annotations for commands and configuration options
+	 * 2. Generate common annotations for PVC
+	 * 2. Check selectors to see if they exist, if so do they match the labels provided for any of our storage drivers
+	 * 2.
+	 * @param client
+	 * @param pvc
+	 * @return
+	 * @throws Exception
+	 */
+	private boolean processPersistentVolumeClaimCreateRequest(ApiClient client, PVCChangeNotification pvc) throws Exception {
 		CoreV1Api api = new CoreV1Api(client);
+		Map<String, String> annotations = ObjectNameMapper.mapKubernetesToPVManagerPVCAnnotations(pvc.getNamespace(), pvc.getVolumeName(), pvc.getAnnotations());
 
 		BigDecimal requestedStorageInBytes = pvc.getRequestedStorage();
 		UUID uuid = UUID.randomUUID();
 
-		Map<String, String> annotations = ObjectNameMapper.mapKubernetesToPVManagerPVCAnnotations(pvc.getNamespace(), pvc.getVolumeName(), pvc.getAnnotations());
-
 		removeInternalAnnotations(annotations);
 		removeBlockedAnnotations(annotations);
 
-		final String requestedStorageClass = getStorageClassFromAnnotations(annotations);
-		final StorageProvider provider = storageControllerConfiguration.getStorageProviders().get(requestedStorageClass);
+		annotations.put(ANNOTATION_MANAGED_BY, ANNOTATION_STORAGE_PROVISIONER_NAME);
+		annotations.put(ANNOTATION_VOLUME_UUID, uuid.toString());
+		annotations.put(ANNOTATION_PVMANAGER_PVTAG, uuid.toString().substring(0,8));
 
-		String cloneNfsHost = null;
-		String cloneZfsPath = null;
+		Map<String, String> cloneSourcePvAnnotations = null;
+		V1PersistentVolume cloneSourcePersistentVolume = null;
+		V1PersistentVolumeClaim cloneSourcePersistentVolumeClaim = null;
 
 		String cloneFrom = annotations.get(ANNOTATION_CLONEFROM);
 		if(cloneFrom != null && !cloneFrom.isEmpty()) {
-			V1PersistentVolumeClaim pvcSource = api.readNamespacedPersistentVolumeClaim(cloneFrom, pvc.getNamespace(), Boolean.TRUE.toString(), Boolean.TRUE, Boolean.FALSE);
-			if(pvcSource == null) {
-				LOG.warn("Could not clone from '" + cloneFrom + "', it does not exist in this name space.");
-			} else {
-				V1PersistentVolumeClaimSpec claimSpec = pvcSource.getSpec();
-				String pvName = claimSpec.getVolumeName();
-				if(pvName == null) {
-					LOG.warn("Could not clone from '" + cloneFrom + "', source persistent volume doesn't exist.");
-				} else {
-					V1PersistentVolume persistentVolume = api.readPersistentVolume(pvName, null, Boolean.TRUE, Boolean.FALSE);
-					V1ObjectMeta metadata = persistentVolume.getMetadata();
-					if(metadata == null) {
-						LOG.error("Persistent volume found for cloning has null metadata object: " + pvc.getNamespace() + "-" + cloneFrom);
-					} else {
-						Map<String, String> cloneSourcePvAnnotations = metadata.getAnnotations();
-						if (cloneSourcePvAnnotations == null) {
-							LOG.error("Persistent volume found for cloning has null annotations object: " + pvc.getNamespace() + "-" + cloneFrom);
-						} else {
-							String managedBy = cloneSourcePvAnnotations.get(ANNOTATION_MANAGED_BY);
-							if(!ANNOTATION_STORAGE_PROVISIONER_NAME.equals(managedBy)) {
-								LOG.error("Persistent volume found for cloning but is not managed by pvmanager: " + pvc.getNamespace() + "-" + cloneFrom + ": " + managedBy);
-							} else {
-								cloneNfsHost = cloneSourcePvAnnotations.get(ANNOTATION_VOLUME_HOST);
-								cloneZfsPath = cloneSourcePvAnnotations.get(ANNOTATION_VOLUME_PATH);
+			cloneSourcePersistentVolumeClaim = api.readNamespacedPersistentVolumeClaim(cloneFrom, pvc.getNamespace(), Boolean.TRUE.toString(), Boolean.TRUE, Boolean.FALSE);
+			if(cloneSourcePersistentVolumeClaim == null) {
+				LOG.error("Could not clone from '" + cloneFrom + "', it does not exist in this name space.");
+				return false;
+			}
 
-								annotations.put(ANNOTATION_CLONEREF, cloneNfsHost + ":" + cloneZfsPath);
-							}
-						}
-					}
-				}
+			V1PersistentVolumeClaimSpec cloneSourceClaimSpec = cloneSourcePersistentVolumeClaim.getSpec();
+			String cloneSourcePvName = cloneSourceClaimSpec.getVolumeName();
+			if(cloneSourcePvName == null) {
+				LOG.error("Could not clone from '" + cloneFrom + "', source persistent volume doesn't exist.");
+				return false;
+			}
+
+			cloneSourcePersistentVolume = api.readPersistentVolume(cloneSourcePvName, null, Boolean.TRUE, Boolean.FALSE);
+			if(cloneSourcePersistentVolume == null) {
+				LOG.error("Persistent volume not ound for cloning: " + pvc.getNamespace() + "-" + cloneFrom + ": " + cloneSourcePvName);
+				return false;
+			}
+
+			V1ObjectMeta metadata = cloneSourcePersistentVolume.getMetadata();
+			if(metadata == null) {
+				LOG.error("Persistent volume found for cloning has null metadata object: " + pvc.getNamespace() + "-" + cloneFrom);
+				return false;
+			}
+
+			cloneSourcePvAnnotations = metadata.getAnnotations();
+			if (cloneSourcePvAnnotations == null) {
+				LOG.error("Persistent volume found for cloning has null annotations object: " + pvc.getNamespace() + "-" + cloneFrom);
+				return false;
+			}
+
+			String managedBy = cloneSourcePvAnnotations.get(ANNOTATION_MANAGED_BY);
+			if(!ANNOTATION_STORAGE_PROVISIONER_NAME.equals(managedBy)) {
+				LOG.error("Persistent volume found for cloning but is not managed by pvmanager: " + pvc.getNamespace() + "-" + cloneFrom + ": " + managedBy);
+				return false;
 			}
 		}
 
-		annotations.put(ANNOTATION_MANAGED_BY, ANNOTATION_STORAGE_PROVISIONER_NAME);
-		annotations.put(ANNOTATION_VOLUME_UUID, uuid.toString());
-		String pvName = "";
-		NfsVolumeProperties persistentVolumeProperties = null;
+		PvVolumeBlockmode volumeMode = null;
+		String volumeModeString = pvc.getClaimSpec().getVolumeMode();
+		if(volumeModeString != null) {
+			annotations.put(ANNOTATION_STORAGE_VOLUMEMODE, volumeModeString);
+		}
 
+		// Create a Claim Reference pointing to the PVC to allow the PV to link back to it directly ensuring it only gets mounted by its intended target
+		V1ObjectReference claimRef = new V1ObjectReference();
+		claimRef.setNamespace(pvc.getNamespace());
+		claimRef.setName(pvc.getVolumeName());
+		claimRef.setUid(pvc.getClaimUid());
+
+
+		if(createPersistentVolume(client, claimRef, annotations, cloneSourcePersistentVolumeClaim, cloneSourcePersistentVolume, cloneSourcePvAnnotations, requestedStorageInBytes, pvc.getClaimSpec().getAccessModes()) == null) {
+			return false;
+		}
+
+		return true;
+	}
+
+	public enum PvVolumeBlockmode {
+		Filesystem,
+		Block
+	}
+	private V1PersistentVolume createPersistentVolume(ApiClient client, V1ObjectReference claimRef, Map<String, String> annotations, V1PersistentVolumeClaim cloneSourcePersistentVolumeClaim, V1PersistentVolume cloneSourcePersistentVolume, Map<String,String> cloneSourcePvAnnotations, BigDecimal sizeInBytes, List<String> accessModes) throws Exception {
+		final String requestedStorageeClass = getStorageClassFromAnnotations(annotations);
+		final StorageProvider provider = storageControllerConfiguration.getStorageProviders().get(requestedStorageeClass);
+
+		UUID uuid = UUID.fromString(annotations.get(ANNOTATION_VOLUME_UUID));
+
+		CoreV1Api api = new CoreV1Api(client);
+
+		V1PersistentVolumeSpec persistentVolumeProperties = null;
+
+		String pvName = replaceTokensInString(annotations, provider.getPvNameFormat());
 		try {
-			annotations.put(ANNOTATION_PVMANAGER_PVTAG, uuid.toString().substring(0,8));
-			pvName = replaceTokensInString(annotations, provider.getPvNameFormat());
 			annotations.put(ANNOTATION_PVMANAGER_PVREF, pvName);
-
-			persistentVolumeProperties = provider.createPersistentVolume(annotations, uuid, Long.valueOf(requestedStorageInBytes.toPlainString()));
-
+			persistentVolumeProperties = provider.createPersistentVolume(annotations, Long.valueOf(sizeInBytes.toPlainString()));
+			persistentVolumeProperties.setAccessModes(accessModes);
+			persistentVolumeProperties.setClaimRef(claimRef);
 		} finally {
 			annotations.remove(ANNOTATION_PVMANAGER_PVTAG);
 			annotations.remove(ANNOTATION_PVMANAGER_PVREF);
@@ -663,49 +723,22 @@ public class PVClaimManagerService implements InitializingBean, DisposableBean {
 			throw new Exception("Persistent volume request could not be fulfilled by any providers.");
 		}
 
-		V1PersistentVolume pv = new V1PersistentVolume();
-		V1PersistentVolumeSpec spec = new V1PersistentVolumeSpec();
-		Map<String, Quantity> capacity = new HashMap<String, Quantity>();
-		V1NFSVolumeSource nfsSource = new V1NFSVolumeSource();
 		V1ObjectMeta metadata = new V1ObjectMeta();
-
-		capacity.put("storage", new Quantity(pvc.getRequestedStorage(), BINARY_SI));
-
-		nfsSource.setServer(persistentVolumeProperties.getNfsHostname());
-		nfsSource.setPath(persistentVolumeProperties.getNfsExportPath());
-		nfsSource.setReadOnly(persistentVolumeProperties.isReadOnly());
-
-		spec.setAccessModes(pvc.accessModes);
-		// Because pvmanager does not plugin to Kubernetes like the existing persistent volume engines, only the 'Retain'
-		// reclaimPolicy is set.  pvmanager emulates the 'Delete' policy be deleting release persistent volumes itself.
-		// The 'Recycle' policy
-
-		spec.setPersistentVolumeReclaimPolicy("Retain");
-		spec.setCapacity(capacity);
-		spec.setNfs(nfsSource);
-
-		V1ObjectReference claimRef = new V1ObjectReference();
-		claimRef.setNamespace(pvc.getNamespace());
-		claimRef.setName(pvc.getVolumeName());
-		claimRef.setUid(pvc.getClaimUid());
-		spec.setClaimRef(claimRef);
-
 		metadata.setName(pvName);
 		metadata.setAnnotations(annotations);
 
-		pv.setSpec(spec);
-		pv.setMetadata(metadata);
+		V1PersistentVolume pvTemplate = new V1PersistentVolume();
+		pvTemplate.setSpec(persistentVolumeProperties);
+		pvTemplate.setMetadata(metadata);
+		V1PersistentVolume npv = api.createPersistentVolume(pvTemplate, null);
 
-		try {
-			V1PersistentVolume npv = api.createPersistentVolume(pv, null);
-			if(annotations.containsKey(ANNOTATION_CLONESNAPSHOT)) {
-				LOG.info("PV cloned for PVC " + pvc.getNamespace() + "-" + pvc.getVolumeName() + " -> " + npv.getMetadata().getName() + " on " + persistentVolumeProperties.getNfsHostname() + ":" + persistentVolumeProperties.getNfsExportPath() + " [cloned from " + cloneFrom + " (" + cloneNfsHost + ":" + cloneZfsPath +  ")]");
-			} else {
-				LOG.info("PV created for PVC " + pvc.getNamespace() + "-" + pvc.getVolumeName() + " -> " + npv.getMetadata().getName() + " on " + persistentVolumeProperties.getNfsHostname() + ":" + persistentVolumeProperties.getNfsExportPath());
-			}
-		} catch (Exception e) {
-			LOG.error("Exception: " + e.getMessage());
+		if(annotations.containsKey(ANNOTATION_CLONESNAPSHOT)) {
+			String cloneFrom = annotations.get(ANNOTATION_CLONEFROM);
+			LOG.info("PV cloned for PVC " + claimRef.getNamespace() + "-" + claimRef.getName() + " -> " + npv.getMetadata().getName() + " on " + persistentVolumeProperties.getNfs().getServer() + ":" + persistentVolumeProperties.getNfs().getPath() + " [cloned from " + cloneFrom +"]");
+		} else {
+			LOG.info("PV created for PVC " + claimRef.getNamespace() + "-" + claimRef.getName() + " -> " + npv.getMetadata().getName() + " on " + persistentVolumeProperties.getNfs().getServer() + ":" + persistentVolumeProperties.getNfs().getPath());
 		}
+		return npv;
 	}
 
 	private void removeBlockedAnnotations(Map<String,String> annotations) {

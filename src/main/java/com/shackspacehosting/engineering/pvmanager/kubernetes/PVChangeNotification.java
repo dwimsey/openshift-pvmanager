@@ -1,7 +1,6 @@
 package com.shackspacehosting.engineering.pvmanager.kubernetes;
 
-
-import com.shackspacehosting.engineering.pvmanager.storage.providers.NfsVolumeProperties;
+import io.kubernetes.client.models.V1PersistentVolumeSpec;
 
 import java.util.List;
 import java.util.Map;
@@ -17,10 +16,10 @@ public class PVChangeNotification {
 	final private List<String> accessModes;
 	final private Map<String, String> annotations;
 	final private Map<String, String> labels;
-	final private NfsVolumeProperties nfsVolumeProperties;
+	final private V1PersistentVolumeSpec claimSpec;
 	final private String reclaimPolicy;
 
-	public PVChangeNotification(String name, String kind, String changeType, String pvState, String pvStateMessage, String pvStateReason, List<String> accessModes, Map<String, String> annotations, Map<String, String> labels, NfsVolumeProperties nfsVolumeProperties, String reclaimPolicy) {
+	public PVChangeNotification(String name, String kind, String changeType, String pvState, String pvStateMessage, String pvStateReason, List<String> accessModes, Map<String, String> annotations, Map<String, String> labels, V1PersistentVolumeSpec claimSpec, String reclaimPolicy) {
 		this.changeType = changeType;
 		this.pvState = pvState;
 		this.pvStateMessage = pvStateMessage;
@@ -30,7 +29,7 @@ public class PVChangeNotification {
 		this.accessModes = accessModes;
 		this.annotations = annotations;
 		this.labels = labels;
-		this.nfsVolumeProperties = nfsVolumeProperties;
+		this.claimSpec = claimSpec;
 		this.reclaimPolicy = reclaimPolicy;
 	}
 
@@ -99,8 +98,8 @@ public class PVChangeNotification {
 		return labels;
 	}
 
-	public NfsVolumeProperties getNfsVolumeProperties() {
-		return nfsVolumeProperties;
+	public V1PersistentVolumeSpec getClaimSpec() {
+		return claimSpec;
 	}
 
 	public String getReclaimPolicy() {
