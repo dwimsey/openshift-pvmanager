@@ -43,6 +43,9 @@ public class SSHExecWrapper {
 		}
 
 		session = jsch.getSession(sshUsername, sshHostname, sshPort);
+		if(sshKeyfile == null && sshKeySecret != null) {
+			session.setPassword(sshKeySecret);
+		}
 		session.setConfig("StrictHostKeyChecking", "no");
 		try {
 			session.connect(30000);

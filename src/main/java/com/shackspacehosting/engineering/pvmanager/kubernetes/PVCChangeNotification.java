@@ -2,14 +2,15 @@ package com.shackspacehosting.engineering.pvmanager.kubernetes;
 
 //import com.openshift.restclient.model.volume.IPersistentVolumeClaim;
 
+import io.kubernetes.client.models.V1PersistentVolumeClaimSpec;
+
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.Map;
 
 public class PVCChangeNotification {
 
 	public final String namespace;
-	public final List<String> accessModes;
+	public final V1PersistentVolumeClaimSpec claimSpec;
 	public final String status;
 	public final BigDecimal requestedStorage;
 	public final String volumeName;
@@ -32,8 +33,8 @@ public class PVCChangeNotification {
 		return namespace;
 	}
 
-	public List<String> getAccessModes() {
-		return accessModes;
+	public V1PersistentVolumeClaimSpec getClaimSpec() {
+		return claimSpec;
 	}
 
 	public String getStatus() {
@@ -56,10 +57,10 @@ public class PVCChangeNotification {
 		return labels;
 	}
 
-	public PVCChangeNotification(String namespace, String volumeName, List<String> accessModes, Map<String, String> labels, Map<String, String> annotations, BigDecimal requestedStorage, String status, String changeType, String claimUid) {
+	public PVCChangeNotification(String namespace, String volumeName, V1PersistentVolumeClaimSpec claimSpec, Map<String, String> labels, Map<String, String> annotations, BigDecimal requestedStorage, String status, String changeType, String claimUid) {
 		this.namespace = namespace;
 		this.volumeName = volumeName;
-		this.accessModes = accessModes;
+		this.claimSpec = claimSpec;
 		this.status = status;
 		this.requestedStorage = requestedStorage;
 		this.labels = labels;
@@ -81,7 +82,7 @@ public class PVCChangeNotification {
 		if(!otherPVCChangeNotification.namespace.equals(this.namespace)) {
 			return false;
 		}
-		if (!otherPVCChangeNotification.accessModes.equals(this.accessModes)) {
+		if (!otherPVCChangeNotification.claimSpec.equals(this.claimSpec)) {
 			return false;
 		}
 		if (!otherPVCChangeNotification.status.equals(this.status)) {

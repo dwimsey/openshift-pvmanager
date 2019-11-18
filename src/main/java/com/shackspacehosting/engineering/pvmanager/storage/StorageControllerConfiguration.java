@@ -4,7 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shackspacehosting.engineering.pvmanager.kubernetes.ObjectNameMapper;
-import com.shackspacehosting.engineering.pvmanager.storage.providers.ZfsOverNfs;
+import com.shackspacehosting.engineering.pvmanager.storage.providers.FreeNasApiStorageProvider;
+import com.shackspacehosting.engineering.pvmanager.storage.providers.ZfsCliStorageProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -104,24 +105,33 @@ public class StorageControllerConfiguration {
 				}
 				provider.setBlockedAnnotations(blockedAnnotations);
 
-
+				// This is provided for backwards compatibility, providers should not be initialized like this anymore
 				String providerName = storageProviderConfigurationNode.get("managementProvider").asText();
-				switch (providerName.toUpperCase()) {
-					case "NFS":
-						JsonNode pName = cfgNode.get("provider");
-						String s = pName.asText();
-						if (s.equals("zfs")) {
+				if(providerName != null) {
+					switch (providerName.toLowerCase()) {
+						case "zfscli":
 							try {
-								provider.setManagementProvider(new ZfsOverNfs(provider, cfgNode));
-							} catch (IllegalArgumentException iae){
-								throw new RuntimeException("ZfsOverNfs configuration for storage class '" + storageClass + "' has one or more unrecoverable errors.", iae);
+								provider.setManagementProvider(new ZfsCliStorageProvider(provider, cfgNode));
+							} catch (IllegalArgumentException iae) {
+								throw new RuntimeException("ZfsCliStorageProvider configuration for storage class '" + storageClass + "' has one or more unrecoverable errors.", iae);
 							}
-						}
-						break;
-					default:
-						throw new RuntimeException("Unknown storage management provider specified for storage class '" + storageClass + "': " + providerName);
+							break;
+						case "freenas":
+							try {
+								provider.setManagementProvider(new FreeNasApiStorageProvider(provider, cfgNode));
+							} catch (IllegalArgumentException iae) {
+								throw new RuntimeException("ZfsCliStorageProvider configuration for storage class '" + storageClass + "' has one or more unrecoverable errors.", iae);
+							}
+							break;
+						default:
+							throw new RuntimeException("Unknown storage management provider specified for storage class '" + storageClass + "': " + providerName);
+					}
+					providers.put(provider.getStorageClass(), provider);
+				} else {
+					String mountProtocol = storageProviderConfigurationNode.get("mountProtocol").asText();					// NFS or iscsi
+					String backendType = storageProviderConfigurationNode.get("backendType").asText();						// zfs
+					String managementProtocol = storageProviderConfigurationNode.get("managementProtocol").asText();		// ssh or api-freenas
 				}
-				providers.put(provider.getStorageClass(), provider);
 			}
 		} else {
 			this.defaultStorageClass = "";
@@ -156,4 +166,5 @@ public class StorageControllerConfiguration {
 	public void setBlockedAnnotations(List<String> blockedAnnotations) {
 		this.blockedAnnotations = blockedAnnotations;
 	}
+
 }
