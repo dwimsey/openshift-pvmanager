@@ -154,7 +154,7 @@
 		<dependency>
 			<groupId>io.github.openfeign</groupId>
 			<artifactId>feign-core</artifactId>
-			<version>10.1.0</version>
+			<version>10.8</version>
 		</dependency>
 		<dependency>
 			<groupId>io.github.openfeign</groupId>
