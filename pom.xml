@@ -164,7 +164,7 @@
 		<dependency>
 			<groupId>io.github.openfeign</groupId>
 			<artifactId>feign-slf4j</artifactId>
-			<version>10.1.0</version>
+			<version>10.9</version>
 		</dependency>
 	</dependencies>
 
