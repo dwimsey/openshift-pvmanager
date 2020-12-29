@@ -19,7 +19,7 @@
 	</parent>
 
 	<properties>
-		<ignite.version>2.7.6</ignite.version>
+		<ignite.version>2.9.1</ignite.version>
 		<skipTests>true</skipTests>
 
 
