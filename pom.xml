@@ -159,7 +159,7 @@
 		<dependency>
 			<groupId>io.github.openfeign</groupId>
 			<artifactId>feign-jackson</artifactId>
-			<version>10.1.0</version>
+			<version>11.4</version>
 		</dependency>
 		<dependency>
 			<groupId>io.github.openfeign</groupId>
